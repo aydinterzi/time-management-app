@@ -1,95 +1,113 @@
 import { useCallback } from "react";
-import { useSessionOperations } from "../contexts/DatabaseContext";
-import { TimerType, useTimerStore } from "../stores/timerStore";
+
+// Types
+export interface Session {
+  id: number;
+  task_id: number | null;
+  start_time: number;
+  end_time?: number;
+  duration: number;
+  type: "work" | "short_break" | "long_break";
+  completed: boolean;
+}
+
+// In-memory implementation that replaces database operations
+const mockSessions: Session[] = [];
+let nextSessionId = 1;
 
 export function useSessionsData() {
-  const sessionOperations = useSessionOperations();
-  const { setSessionId } = useTimerStore();
-
   // Start a new session
   const startSession = useCallback(
-    async (taskId: number | null, type: TimerType, duration: number) => {
+    async (
+      taskId: number | null,
+      type: "work" | "short_break" | "long_break",
+      duration: number
+    ) => {
       try {
-        const sessionId = await sessionOperations.startSession(
-          taskId,
+        const newSession: Session = {
+          id: nextSessionId++,
+          task_id: taskId,
+          start_time: Math.floor(Date.now() / 1000),
+          duration,
           type,
-          duration
-        );
-        if (sessionId) {
-          setSessionId(sessionId as number);
-          return sessionId;
-        }
-        return null;
+          completed: false,
+        };
+
+        mockSessions.push(newSession);
+        return newSession.id;
       } catch (error) {
         console.error("Error starting session:", error);
         return null;
       }
     },
-    [sessionOperations, setSessionId]
+    []
   );
 
   // Complete a session
-  const completeSession = useCallback(
-    async (sessionId: number) => {
-      try {
-        const success = await sessionOperations.completeSession(sessionId);
-        if (success) {
-          setSessionId(null);
-          return true;
-        }
-        return false;
-      } catch (error) {
-        console.error("Error completing session:", error);
-        return false;
+  const completeSession = useCallback(async (sessionId: number) => {
+    try {
+      const sessionIndex = mockSessions.findIndex(
+        (session) => session.id === sessionId
+      );
+
+      if (sessionIndex !== -1) {
+        mockSessions[sessionIndex].completed = true;
+        mockSessions[sessionIndex].end_time = Math.floor(Date.now() / 1000);
+        return true;
       }
-    },
-    [sessionOperations, setSessionId]
-  );
+
+      return false;
+    } catch (error) {
+      console.error("Error completing session:", error);
+      return false;
+    }
+  }, []);
 
   // Get session statistics
-  const getSessionStats = useCallback(
-    async (days = 7) => {
-      try {
-        return await sessionOperations.getSessionStats(days);
-      } catch (error) {
-        console.error("Error fetching session stats:", error);
-        return [];
-      }
-    },
-    [sessionOperations]
-  );
+  const getSessionStats = useCallback(async (days = 7) => {
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const cutoffTime = now - days * 86400;
 
-  // Get sessions by day for statistics
-  const getSessionsByDay = useCallback(
-    async (days = 7) => {
-      try {
-        return await sessionOperations.getSessionsByDay(days);
-      } catch (error) {
-        console.error("Error fetching sessions by day:", error);
-        return [];
-      }
-    },
-    [sessionOperations]
-  );
+      const stats = mockSessions
+        .filter((s) => s.completed && (s.end_time || 0) > cutoffTime)
+        .reduce((acc, session) => {
+          const type = session.type;
+          if (!acc[type]) {
+            acc[type] = { count: 0, total_duration: 0 };
+          }
+          acc[type].count += 1;
+          acc[type].total_duration += session.duration;
+          return acc;
+        }, {} as Record<string, { count: number; total_duration: number }>);
+
+      return Object.entries(stats).map(([type, data]) => ({
+        type,
+        count: data.count,
+        total_duration: data.total_duration,
+      }));
+    } catch (error) {
+      console.error("Error getting session stats:", error);
+      return [];
+    }
+  }, []);
 
   // Get all sessions for a specific task
-  const getTaskSessions = useCallback(
-    async (taskId: number) => {
-      try {
-        return await sessionOperations.getTaskSessions(taskId);
-      } catch (error) {
-        console.error("Error fetching task sessions:", error);
-        return [];
-      }
-    },
-    [sessionOperations]
-  );
+  const getTaskSessions = useCallback(async (taskId: number) => {
+    try {
+      return mockSessions
+        .filter((session) => session.task_id === taskId)
+        .sort((a, b) => b.start_time - a.start_time);
+    } catch (error) {
+      console.error("Error getting task sessions:", error);
+      return [];
+    }
+  }, []);
 
   return {
     startSession,
     completeSession,
     getSessionStats,
-    getSessionsByDay,
     getTaskSessions,
   };
 }

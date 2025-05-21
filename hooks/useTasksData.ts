@@ -1,9 +1,11 @@
 import { useCallback } from "react";
-import { useTaskOperations } from "../contexts/DatabaseContext";
 import { Task, useTaskStore } from "../stores/taskStore";
 
+// In-memory implementation that replaces database operations
+const mockTasks: Task[] = [];
+let nextTaskId = 1;
+
 export function useTasksData() {
-  const taskOperations = useTaskOperations();
   const {
     setTasks,
     addTask,
@@ -14,14 +16,16 @@ export function useTasksData() {
     setLoading,
   } = useTaskStore();
 
-  // Fetch tasks from the database
+  // Fetch tasks from memory
   const fetchTasks = useCallback(
     async (includeCompleted = false) => {
       try {
         setLoading(true);
-        const tasks = await taskOperations.getTasks(includeCompleted);
-        setTasks(tasks as Task[]);
-        return tasks;
+        const filteredTasks = includeCompleted
+          ? mockTasks
+          : mockTasks.filter((task) => !task.completed);
+        setTasks([...filteredTasks]);
+        return filteredTasks;
       } catch (error) {
         console.error("Error fetching tasks:", error);
         return [];
@@ -29,7 +33,7 @@ export function useTasksData() {
         setLoading(false);
       }
     },
-    [taskOperations, setTasks, setLoading]
+    [setTasks, setLoading]
   );
 
   // Create a new task
@@ -42,17 +46,21 @@ export function useTasksData() {
     }) => {
       try {
         setLoading(true);
-        const newTaskId = await taskOperations.createTask(taskData);
+        const newTask: Task = {
+          id: nextTaskId++,
+          title: taskData.title,
+          description: taskData.description || "",
+          priority: taskData.priority || 1,
+          estimated_pomodoros: taskData.estimated_pomodoros || 1,
+          completed_pomodoros: 0,
+          completed: false,
+          created_at: Math.floor(Date.now() / 1000),
+          completed_at: undefined,
+        };
 
-        if (newTaskId) {
-          // Fetch the newly created task to get all fields
-          const newTask = await taskOperations.getTaskById(newTaskId as number);
-          if (newTask) {
-            addTask(newTask as Task);
-            return newTask;
-          }
-        }
-        return null;
+        mockTasks.push(newTask);
+        addTask(newTask);
+        return newTask;
       } catch (error) {
         console.error("Error creating task:", error);
         return null;
@@ -60,7 +68,7 @@ export function useTasksData() {
         setLoading(false);
       }
     },
-    [taskOperations, addTask, setLoading]
+    [addTask, setLoading]
   );
 
   // Update an existing task
@@ -79,16 +87,15 @@ export function useTasksData() {
     ) => {
       try {
         setLoading(true);
-        const success = await taskOperations.updateTask(taskId, updates);
+        const taskIndex = mockTasks.findIndex((task) => task.id === taskId);
 
-        if (success) {
-          // Fetch the updated task to get all fields
-          const updatedTask = await taskOperations.getTaskById(taskId);
-          if (updatedTask) {
-            updateTask(updatedTask as Task);
-            return updatedTask;
-          }
+        if (taskIndex !== -1) {
+          const updatedTask = { ...mockTasks[taskIndex], ...updates };
+          mockTasks[taskIndex] = updatedTask;
+          updateTask(updatedTask);
+          return updatedTask;
         }
+
         return null;
       } catch (error) {
         console.error("Error updating task:", error);
@@ -97,7 +104,7 @@ export function useTasksData() {
         setLoading(false);
       }
     },
-    [taskOperations, updateTask, setLoading]
+    [updateTask, setLoading]
   );
 
   // Delete a task
@@ -105,12 +112,14 @@ export function useTasksData() {
     async (taskId: number) => {
       try {
         setLoading(true);
-        const success = await taskOperations.deleteTask(taskId);
+        const taskIndex = mockTasks.findIndex((task) => task.id === taskId);
 
-        if (success) {
+        if (taskIndex !== -1) {
+          mockTasks.splice(taskIndex, 1);
           removeTask(taskId);
           return true;
         }
+
         return false;
       } catch (error) {
         console.error("Error deleting task:", error);
@@ -119,7 +128,7 @@ export function useTasksData() {
         setLoading(false);
       }
     },
-    [taskOperations, removeTask, setLoading]
+    [removeTask, setLoading]
   );
 
   // Mark a task as completed
@@ -127,12 +136,15 @@ export function useTasksData() {
     async (taskId: number) => {
       try {
         setLoading(true);
-        const success = await taskOperations.completeTask(taskId);
+        const taskIndex = mockTasks.findIndex((task) => task.id === taskId);
 
-        if (success) {
+        if (taskIndex !== -1) {
+          mockTasks[taskIndex].completed = true;
+          mockTasks[taskIndex].completed_at = Math.floor(Date.now() / 1000);
           markTaskCompleted(taskId);
           return true;
         }
+
         return false;
       } catch (error) {
         console.error("Error completing task:", error);
@@ -141,7 +153,7 @@ export function useTasksData() {
         setLoading(false);
       }
     },
-    [taskOperations, markTaskCompleted, setLoading]
+    [markTaskCompleted, setLoading]
   );
 
   // Increment completed pomodoros for a task
@@ -149,12 +161,14 @@ export function useTasksData() {
     async (taskId: number) => {
       try {
         setLoading(true);
-        const success = await taskOperations.incrementPomodoro(taskId);
+        const taskIndex = mockTasks.findIndex((task) => task.id === taskId);
 
-        if (success) {
+        if (taskIndex !== -1) {
+          mockTasks[taskIndex].completed_pomodoros += 1;
           incrementTaskPomodoro(taskId);
           return true;
         }
+
         return false;
       } catch (error) {
         console.error("Error incrementing pomodoro:", error);
@@ -163,7 +177,7 @@ export function useTasksData() {
         setLoading(false);
       }
     },
-    [taskOperations, incrementTaskPomodoro, setLoading]
+    [incrementTaskPomodoro, setLoading]
   );
 
   return {

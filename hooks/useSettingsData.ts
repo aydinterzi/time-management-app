@@ -1,57 +1,69 @@
-import { useCallback } from "react";
-import { useSettingsOperations } from "../contexts/DatabaseContext";
-import { AppSettings, useSettingsStore } from "../stores/settingsStore";
+import { useCallback, useState } from "react";
+
+// Types
+export interface Settings {
+  id: number;
+  work_duration: number;
+  short_break_duration: number;
+  long_break_duration: number;
+  long_break_interval: number;
+  auto_start_breaks: boolean;
+  auto_start_pomodoros: boolean;
+  sound_enabled: boolean;
+  vibration_enabled: boolean;
+  notification_enabled: boolean;
+}
+
+// Default settings
+const DEFAULT_SETTINGS: Settings = {
+  id: 1,
+  work_duration: 1500, // 25 minutes in seconds
+  short_break_duration: 300, // 5 minutes
+  long_break_duration: 900, // 15 minutes
+  long_break_interval: 4,
+  auto_start_breaks: false,
+  auto_start_pomodoros: false,
+  sound_enabled: true,
+  vibration_enabled: true,
+  notification_enabled: true,
+};
+
+// In-memory mock implementation
+const mockSettings: Settings = { ...DEFAULT_SETTINGS };
 
 export function useSettingsData() {
-  const settingsOperations = useSettingsOperations();
-  const {
-    setSettings,
-    updateSettings: updateStoreSettings,
-    setLoading,
-  } = useSettingsStore();
+  const [loading, setLoading] = useState(false);
 
-  // Fetch settings from the database
-  const fetchSettings = useCallback(async () => {
+  // Get all settings
+  const getSettings = useCallback(async () => {
     try {
       setLoading(true);
-      const settings = await settingsOperations.getSettings();
-      if (settings) {
-        setSettings(settings as AppSettings);
-        return settings;
-      }
-      return null;
+      return { ...mockSettings };
     } catch (error) {
       console.error("Error fetching settings:", error);
-      return null;
+      return DEFAULT_SETTINGS;
     } finally {
       setLoading(false);
     }
-  }, [settingsOperations, setSettings, setLoading]);
+  }, []);
 
-  // Update settings in database and store
-  const updateSettings = useCallback(
-    async (updates: Partial<AppSettings>) => {
-      try {
-        setLoading(true);
-        const success = await settingsOperations.updateSettings(updates);
-
-        if (success) {
-          updateStoreSettings(updates);
-          return true;
-        }
-        return false;
-      } catch (error) {
-        console.error("Error updating settings:", error);
-        return false;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [settingsOperations, updateStoreSettings, setLoading]
-  );
+  // Update settings
+  const updateSettings = useCallback(async (updates: Partial<Settings>) => {
+    try {
+      setLoading(true);
+      Object.assign(mockSettings, updates);
+      return true;
+    } catch (error) {
+      console.error("Error updating settings:", error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   return {
-    fetchSettings,
+    getSettings,
     updateSettings,
+    loading,
   };
 }
