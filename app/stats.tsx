@@ -1,27 +1,27 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import {
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from "react-native";
+import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSessionsData } from "../hooks/useSessionsData";
 import { useTasksData } from "../hooks/useTasksData";
-import { Session } from "../stores/sessionStore";
 import { Task } from "../stores/taskStore";
 
-export default function StatsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+// Define SessionStat type for the return value of getSessionStats
+interface SessionStat {
+  type: string;
+  count: number;
+  total_duration: number;
+}
 
-  const { fetchSessions } = useSessionsData();
+export default function StatsScreen() {
+  // Force dark theme
+  const isDark = true;
+
+  // Use hooks for data access
+  const sessionsData = useSessionsData();
   const { fetchTasks } = useTasksData();
 
   const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionStats, setSessionStats] = useState<SessionStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalWorkMinutes: 0,
@@ -44,26 +44,34 @@ export default function StatsScreen() {
       );
       setCompletedTasks(completedTasksResult);
 
-      // Load sessions
-      const sessionsResult = await fetchSessions();
-      setSessions(sessionsResult);
+      // Load session stats
+      const sessionStatsResult = await sessionsData.getSessionStats();
+      setSessionStats(sessionStatsResult);
 
       // Calculate statistics
-      const totalWorkMinutes = sessionsResult.reduce(
-        (total: number, session: Session) => {
-          return total + session.duration / 60;
+      const totalWorkMinutes = sessionStatsResult.reduce(
+        (total: number, stat: SessionStat) => {
+          if (stat.type === "work") {
+            return total + stat.total_duration / 60;
+          }
+          return total;
         },
         0
       );
 
+      const totalSessions = sessionStatsResult.reduce(
+        (total: number, stat: SessionStat) => total + stat.count,
+        0
+      );
+
       const averageSessionsPerTask = completedTasksResult.length
-        ? sessionsResult.length / completedTasksResult.length
+        ? totalSessions / completedTasksResult.length
         : 0;
 
       setStats({
         totalWorkMinutes,
         totalCompletedTasks: completedTasksResult.length,
-        totalSessions: sessionsResult.length,
+        totalSessions,
         averageSessionsPerTask,
       });
     } catch (error) {
@@ -83,39 +91,123 @@ export default function StatsScreen() {
       <ScrollView style={styles.scrollContainer}>
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
+          <View
+            style={[
+              styles.statCard,
+              isDark ? styles.darkStatCard : styles.lightStatCard,
+            ]}
+          >
             <MaterialIcons name="timer" size={32} color="#625df5" />
-            <Text style={styles.statValue}>
+            <Text
+              style={[
+                styles.statValue,
+                isDark ? styles.darkText : styles.lightText,
+              ]}
+            >
               {stats.totalWorkMinutes.toFixed(0)}
             </Text>
-            <Text style={styles.statLabel}>Total Minutes</Text>
+            <Text
+              style={[
+                styles.statLabel,
+                isDark ? styles.darkSubText : styles.lightSubText,
+              ]}
+            >
+              Total Minutes
+            </Text>
           </View>
 
-          <View style={styles.statCard}>
+          <View
+            style={[
+              styles.statCard,
+              isDark ? styles.darkStatCard : styles.lightStatCard,
+            ]}
+          >
             <MaterialIcons name="check-circle" size={32} color="#4caf50" />
-            <Text style={styles.statValue}>{stats.totalCompletedTasks}</Text>
-            <Text style={styles.statLabel}>Completed Tasks</Text>
+            <Text
+              style={[
+                styles.statValue,
+                isDark ? styles.darkText : styles.lightText,
+              ]}
+            >
+              {stats.totalCompletedTasks}
+            </Text>
+            <Text
+              style={[
+                styles.statLabel,
+                isDark ? styles.darkSubText : styles.lightSubText,
+              ]}
+            >
+              Completed Tasks
+            </Text>
           </View>
 
-          <View style={styles.statCard}>
+          <View
+            style={[
+              styles.statCard,
+              isDark ? styles.darkStatCard : styles.lightStatCard,
+            ]}
+          >
             <MaterialIcons name="repeat" size={32} color="#ff9800" />
-            <Text style={styles.statValue}>{stats.totalSessions}</Text>
-            <Text style={styles.statLabel}>Total Sessions</Text>
+            <Text
+              style={[
+                styles.statValue,
+                isDark ? styles.darkText : styles.lightText,
+              ]}
+            >
+              {stats.totalSessions}
+            </Text>
+            <Text
+              style={[
+                styles.statLabel,
+                isDark ? styles.darkSubText : styles.lightSubText,
+              ]}
+            >
+              Total Sessions
+            </Text>
           </View>
 
-          <View style={styles.statCard}>
+          <View
+            style={[
+              styles.statCard,
+              isDark ? styles.darkStatCard : styles.lightStatCard,
+            ]}
+          >
             <MaterialIcons name="trending-up" size={32} color="#e91e63" />
-            <Text style={styles.statValue}>
+            <Text
+              style={[
+                styles.statValue,
+                isDark ? styles.darkText : styles.lightText,
+              ]}
+            >
               {stats.averageSessionsPerTask.toFixed(1)}
             </Text>
-            <Text style={styles.statLabel}>Avg Sessions/Task</Text>
+            <Text
+              style={[
+                styles.statLabel,
+                isDark ? styles.darkSubText : styles.lightSubText,
+              ]}
+            >
+              Avg Sessions/Task
+            </Text>
           </View>
         </View>
 
         {/* Completed Tasks Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recently Completed Tasks</Text>
-          <View style={styles.taskListContainer}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              isDark ? styles.darkText : styles.lightText,
+            ]}
+          >
+            Recently Completed Tasks
+          </Text>
+          <View
+            style={[
+              styles.taskListContainer,
+              isDark ? styles.darkTaskList : styles.lightTaskList,
+            ]}
+          >
             {completedTasks.length > 0 ? (
               completedTasks.map((task) => (
                 <View key={task.id} style={styles.taskItem}>
@@ -125,15 +217,34 @@ export default function StatsScreen() {
                     color="#4caf50"
                   />
                   <View style={styles.taskDetails}>
-                    <Text style={styles.taskTitle}>{task.title}</Text>
-                    <Text style={styles.taskSubtitle}>
+                    <Text
+                      style={[
+                        styles.taskTitle,
+                        isDark ? styles.darkText : styles.lightText,
+                      ]}
+                    >
+                      {task.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.taskSubtitle,
+                        isDark ? styles.darkSubText : styles.lightSubText,
+                      ]}
+                    >
                       {task.completed_pomodoros} pomodoros
                     </Text>
                   </View>
                 </View>
               ))
             ) : (
-              <Text style={styles.emptyText}>No completed tasks yet</Text>
+              <Text
+                style={[
+                  styles.emptyText,
+                  isDark ? styles.darkSubText : styles.lightSubText,
+                ]}
+              >
+                No completed tasks yet
+              </Text>
             )}
           </View>
         </View>
@@ -163,21 +274,36 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: "48%",
-    backgroundColor: "#1e1e1e",
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
     marginBottom: 16,
   },
+  darkStatCard: {
+    backgroundColor: "#1e1e1e",
+  },
+  lightStatCard: {
+    backgroundColor: "#e0e0e0",
+  },
   statValue: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#fff",
     marginVertical: 8,
   },
   statLabel: {
     fontSize: 14,
+  },
+  darkText: {
+    color: "#fff",
+  },
+  lightText: {
+    color: "#333",
+  },
+  darkSubText: {
     color: "#aaa",
+  },
+  lightSubText: {
+    color: "#666",
   },
   section: {
     padding: 16,
@@ -185,13 +311,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
     marginBottom: 16,
   },
   taskListContainer: {
-    backgroundColor: "#1e1e1e",
     borderRadius: 8,
     padding: 8,
+  },
+  darkTaskList: {
+    backgroundColor: "#1e1e1e",
+  },
+  lightTaskList: {
+    backgroundColor: "#e0e0e0",
   },
   taskItem: {
     flexDirection: "row",
@@ -207,16 +337,13 @@ const styles = StyleSheet.create({
   taskTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#fff",
   },
   taskSubtitle: {
     fontSize: 14,
-    color: "#aaa",
     marginTop: 4,
   },
   emptyText: {
     textAlign: "center",
-    color: "#aaa",
     padding: 16,
   },
 });

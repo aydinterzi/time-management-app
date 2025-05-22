@@ -1,4 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import Slider from "@react-native-community/slider";
 import React, { useEffect, useState } from "react";
 import {
   Platform,
@@ -7,7 +8,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 import Timer from "../components/Timer";
@@ -19,9 +19,8 @@ import { Task } from "../stores/taskStore";
 import { useTimerStore } from "../stores/timerStore";
 
 export default function TimerScreen() {
-  // Get color scheme
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  // Force dark theme
+  const isDark = true;
 
   // Timer state
   const {
@@ -41,7 +40,13 @@ export default function TimerScreen() {
   const { startSession, completeSession } = useSessionsData();
 
   // Settings operations
-  const { getSettings } = useSettingsData();
+  const { getSettings, updateSettings } = useSettingsData();
+
+  // Timer settings
+  const [workMinutes, setWorkMinutes] = useState(25);
+  const [shortBreakMinutes, setShortBreakMinutes] = useState(5);
+  const [longBreakMinutes, setLongBreakMinutes] = useState(15);
+  const [showTimerSettings, setShowTimerSettings] = useState(false);
 
   // Component state
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -70,6 +75,10 @@ export default function TimerScreen() {
       const settings = await getSettings();
       if (settings) {
         const appSettings = settings as AppSettings;
+        setWorkMinutes(appSettings.work_duration / 60);
+        setShortBreakMinutes(appSettings.short_break_duration / 60);
+        setLongBreakMinutes(appSettings.long_break_duration / 60);
+
         // Set timer duration based on the current timer type
         if (type === "work") {
           setDuration(appSettings.work_duration);
@@ -108,12 +117,55 @@ export default function TimerScreen() {
   // Toggle task selection panel
   const toggleTaskSelect = () => {
     setShowTaskSelect(!showTaskSelect);
+    setShowTimerSettings(false);
+  };
+
+  // Toggle timer settings panel
+  const toggleTimerSettings = () => {
+    setShowTimerSettings(!showTimerSettings);
+    setShowTaskSelect(false);
   };
 
   // Handle task selection for the timer
   const handleTaskSelect = (task: Task) => {
     setActiveTaskId(task.id);
     setShowTaskSelect(false);
+  };
+
+  // Update timer setting and save to storage
+  const updateTimerSetting = async (settingType: string, minutes: number) => {
+    try {
+      const seconds = minutes * 60;
+      const updates: Partial<AppSettings> = {};
+
+      if (settingType === "work") {
+        setWorkMinutes(minutes);
+        updates.work_duration = seconds;
+        // If we're currently in a work session, update the timer immediately
+        if (type === "work") {
+          setDuration(seconds);
+        }
+      } else if (settingType === "short_break") {
+        setShortBreakMinutes(minutes);
+        updates.short_break_duration = seconds;
+        // If we're currently in a short break, update the timer immediately
+        if (type === "short_break") {
+          setDuration(seconds);
+        }
+      } else if (settingType === "long_break") {
+        setLongBreakMinutes(minutes);
+        updates.long_break_duration = seconds;
+        // If we're currently in a long break, update the timer immediately
+        if (type === "long_break") {
+          setDuration(seconds);
+        }
+      }
+
+      // Save settings to storage
+      await updateSettings(updates);
+    } catch (error) {
+      console.error("Error updating timer settings:", error);
+    }
   };
 
   return (
@@ -128,32 +180,217 @@ export default function TimerScreen() {
       <View style={styles.timerContainer}>
         <Timer onComplete={handleTimerComplete} />
 
+        {/* Timer Settings Button */}
+        <TouchableOpacity
+          style={[
+            styles.timerSettingsButton,
+            isDark ? styles.darkButton : styles.lightButton,
+          ]}
+          onPress={toggleTimerSettings}
+        >
+          <MaterialIcons
+            name="tune"
+            size={20}
+            color={isDark ? "#fff" : "#333"}
+          />
+          <Text
+            style={[
+              styles.buttonText,
+              isDark ? styles.darkText : styles.lightText,
+            ]}
+          >
+            Adjust Timer
+          </Text>
+        </TouchableOpacity>
+
         {/* Active Task Display */}
         <TouchableOpacity
-          style={styles.activeTaskButton}
+          style={[
+            styles.activeTaskButton,
+            isDark ? styles.darkActiveTaskButton : styles.lightActiveTaskButton,
+          ]}
           onPress={toggleTaskSelect}
         >
           {activeTask ? (
             <View style={styles.activeTaskInfo}>
-              <Text style={styles.activeTaskLabel}>Current Task:</Text>
-              <Text style={styles.activeTaskTitle}>{activeTask.title}</Text>
+              <Text
+                style={[
+                  styles.activeTaskLabel,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Current Task:
+              </Text>
+              <Text
+                style={[
+                  styles.activeTaskTitle,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                {activeTask.title}
+              </Text>
             </View>
           ) : (
             <View style={styles.activeTaskInfo}>
-              <Text style={styles.activeTaskLabel}>No Task Selected</Text>
-              <Text style={styles.activeTaskTitle}>Tap to select a task</Text>
+              <Text
+                style={[
+                  styles.activeTaskLabel,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                No Task Selected
+              </Text>
+              <Text
+                style={[
+                  styles.activeTaskTitle,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Tap to select a task
+              </Text>
             </View>
           )}
         </TouchableOpacity>
       </View>
 
+      {/* Timer Settings Panel */}
+      {showTimerSettings && (
+        <View
+          style={[
+            styles.taskSelectPanel,
+            isDark ? styles.darkTaskPanel : styles.lightTaskPanel,
+          ]}
+        >
+          <View style={styles.taskSelectHeader}>
+            <Text
+              style={[
+                styles.taskSelectTitle,
+                isDark ? styles.darkText : styles.lightText,
+              ]}
+            >
+              Timer Settings
+            </Text>
+            <TouchableOpacity onPress={toggleTimerSettings}>
+              <MaterialIcons
+                name="close"
+                size={24}
+                color={isDark ? "#fff" : "#333"}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Work Duration */}
+          <View style={styles.settingItem}>
+            <View style={styles.settingHeader}>
+              <MaterialIcons name="work" size={20} color="#ff5252" />
+              <Text
+                style={[
+                  styles.settingTitle,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Work Duration: {workMinutes} min
+              </Text>
+            </View>
+            <Slider
+              value={workMinutes}
+              onValueChange={(value) => setWorkMinutes(Math.round(value))}
+              onSlidingComplete={(value) =>
+                updateTimerSetting("work", Math.round(value))
+              }
+              minimumValue={1}
+              maximumValue={60}
+              step={1}
+              minimumTrackTintColor="#625df5"
+              maximumTrackTintColor="#333"
+              thumbTintColor="#625df5"
+              style={{ width: "100%", height: 40 }}
+            />
+          </View>
+
+          {/* Short Break Duration */}
+          <View style={styles.settingItem}>
+            <View style={styles.settingHeader}>
+              <MaterialIcons name="coffee" size={20} color="#4caf50" />
+              <Text
+                style={[
+                  styles.settingTitle,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Short Break: {shortBreakMinutes} min
+              </Text>
+            </View>
+            <Slider
+              value={shortBreakMinutes}
+              onValueChange={(value) => setShortBreakMinutes(Math.round(value))}
+              onSlidingComplete={(value) =>
+                updateTimerSetting("short_break", Math.round(value))
+              }
+              minimumValue={1}
+              maximumValue={15}
+              step={1}
+              minimumTrackTintColor="#625df5"
+              maximumTrackTintColor="#333"
+              thumbTintColor="#625df5"
+              style={{ width: "100%", height: 40 }}
+            />
+          </View>
+
+          {/* Long Break Duration */}
+          <View style={styles.settingItem}>
+            <View style={styles.settingHeader}>
+              <MaterialIcons name="free-breakfast" size={20} color="#2196f3" />
+              <Text
+                style={[
+                  styles.settingTitle,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Long Break: {longBreakMinutes} min
+              </Text>
+            </View>
+            <Slider
+              value={longBreakMinutes}
+              onValueChange={(value) => setLongBreakMinutes(Math.round(value))}
+              onSlidingComplete={(value) =>
+                updateTimerSetting("long_break", Math.round(value))
+              }
+              minimumValue={5}
+              maximumValue={30}
+              step={1}
+              minimumTrackTintColor="#625df5"
+              maximumTrackTintColor="#333"
+              thumbTintColor="#625df5"
+              style={{ width: "100%", height: 40 }}
+            />
+          </View>
+        </View>
+      )}
+
       {/* Task Selection Panel */}
       {showTaskSelect && (
-        <View style={styles.taskSelectPanel}>
+        <View
+          style={[
+            styles.taskSelectPanel,
+            isDark ? styles.darkTaskPanel : styles.lightTaskPanel,
+          ]}
+        >
           <View style={styles.taskSelectHeader}>
-            <Text style={styles.taskSelectTitle}>Select a Task</Text>
+            <Text
+              style={[
+                styles.taskSelectTitle,
+                isDark ? styles.darkText : styles.lightText,
+              ]}
+            >
+              Select a Task
+            </Text>
             <TouchableOpacity onPress={toggleTaskSelect}>
-              <MaterialIcons name="close" size={24} color="#fff" />
+              <MaterialIcons
+                name="close"
+                size={24}
+                color={isDark ? "#fff" : "#333"}
+              />
             </TouchableOpacity>
           </View>
 
@@ -163,13 +400,26 @@ export default function TimerScreen() {
                 key={task.id}
                 style={[
                   styles.taskSelectItem,
+                  isDark ? styles.darkTaskItem : styles.lightTaskItem,
                   activeTaskId === task.id && styles.taskSelectItemActive,
                 ]}
                 onPress={() => handleTaskSelect(task)}
               >
-                <Text style={styles.taskSelectItemTitle}>{task.title}</Text>
+                <Text
+                  style={[
+                    styles.taskSelectItemTitle,
+                    isDark ? styles.darkText : styles.lightText,
+                  ]}
+                >
+                  {task.title}
+                </Text>
                 <View style={styles.taskSelectItemMeta}>
-                  <Text style={styles.taskSelectItemCount}>
+                  <Text
+                    style={[
+                      styles.taskSelectItemCount,
+                      isDark ? styles.darkSubText : styles.lightSubText,
+                    ]}
+                  >
                     {task.completed_pomodoros}/{task.estimated_pomodoros}{" "}
                     pomodoros
                   </Text>
@@ -178,7 +428,12 @@ export default function TimerScreen() {
             ))
           ) : (
             <View style={styles.emptyTasksMessage}>
-              <Text style={styles.emptyTasksText}>
+              <Text
+                style={[
+                  styles.emptyTasksText,
+                  isDark ? styles.darkSubText : styles.lightSubText,
+                ]}
+              >
                 No tasks available. Add tasks in the Tasks tab.
               </Text>
             </View>
@@ -205,38 +460,78 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  timerSettingsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 12,
+  },
+  darkButton: {
+    backgroundColor: "#2d2d2d",
+  },
+  lightButton: {
+    backgroundColor: "#e0e0e0",
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    marginLeft: 6,
+  },
   activeTaskButton: {
-    marginTop: 20,
+    marginTop: 10,
     padding: 16,
     borderRadius: 8,
-    backgroundColor: "#1e1e1e",
     width: "80%",
     alignItems: "center",
+  },
+  darkActiveTaskButton: {
+    backgroundColor: "#1e1e1e",
+  },
+  lightActiveTaskButton: {
+    backgroundColor: "#e0e0e0",
   },
   activeTaskInfo: {
     alignItems: "center",
   },
   activeTaskLabel: {
     fontSize: 14,
-    color: "#aaa",
     marginBottom: 4,
   },
   activeTaskTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
     textAlign: "center",
+  },
+  darkText: {
+    color: "#fff",
+  },
+  lightText: {
+    color: "#333",
+  },
+  darkSubText: {
+    color: "#aaa",
+  },
+  lightSubText: {
+    color: "#666",
   },
   taskSelectPanel: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#1e1e1e",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
     maxHeight: "60%",
+  },
+  darkTaskPanel: {
+    backgroundColor: "#1e1e1e",
+  },
+  lightTaskPanel: {
+    backgroundColor: "#e0e0e0",
   },
   taskSelectHeader: {
     flexDirection: "row",
@@ -250,13 +545,17 @@ const styles = StyleSheet.create({
   taskSelectTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
   },
   taskSelectItem: {
     padding: 16,
     borderRadius: 8,
-    backgroundColor: "#2d2d2d",
     marginBottom: 8,
+  },
+  darkTaskItem: {
+    backgroundColor: "#2d2d2d",
+  },
+  lightTaskItem: {
+    backgroundColor: "#f0f0f0",
   },
   taskSelectItemActive: {
     backgroundColor: "#625df5",
@@ -264,7 +563,6 @@ const styles = StyleSheet.create({
   taskSelectItemTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#fff",
   },
   taskSelectItemMeta: {
     marginTop: 4,
@@ -273,15 +571,26 @@ const styles = StyleSheet.create({
   },
   taskSelectItemCount: {
     fontSize: 14,
-    color: "#aaa",
   },
   emptyTasksMessage: {
     padding: 20,
     alignItems: "center",
   },
   emptyTasksText: {
-    color: "#aaa",
     fontSize: 16,
     textAlign: "center",
+  },
+  settingItem: {
+    marginBottom: 16,
+  },
+  settingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  settingTitle: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginLeft: 8,
   },
 });

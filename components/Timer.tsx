@@ -18,6 +18,9 @@ interface TimerProps {
 }
 
 export default function Timer({ onComplete }: TimerProps) {
+  // Force dark theme
+  const isDark = true;
+
   const {
     state,
     type,
@@ -32,10 +35,14 @@ export default function Timer({ onComplete }: TimerProps) {
   } = useTimerStore();
 
   // Handle timer interval
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Progress value for circular indicator (0-100)
-  const progress = (timeRemaining / duration) * 100;
+  // Reset timeRemaining whenever duration changes
+  useEffect(() => {
+    if (state === "idle") {
+      setTimeRemaining(duration);
+    }
+  }, [duration, state, setTimeRemaining]);
 
   // Start/pause timer effect
   useEffect(() => {
@@ -49,7 +56,9 @@ export default function Timer({ onComplete }: TimerProps) {
       intervalRef.current = setInterval(() => {
         if (timeRemaining <= 1) {
           // Timer complete
-          clearInterval(intervalRef.current!);
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+          }
           setTimeRemaining(0);
           onComplete?.();
           complete();
@@ -113,7 +122,9 @@ export default function Timer({ onComplete }: TimerProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.timerType}>
+      <Text
+        style={[styles.timerType, isDark ? styles.darkText : styles.lightText]}
+      >
         {type === "work"
           ? "Focus Time"
           : type === "short_break"
@@ -128,9 +139,9 @@ export default function Timer({ onComplete }: TimerProps) {
         activeStrokeWidth={15}
         inActiveStrokeWidth={15}
         activeStrokeColor={timerColor}
-        inActiveStrokeColor={"#2d2d2d"}
+        inActiveStrokeColor={isDark ? "#2d2d2d" : "#d0d0d0"}
         title={formatTime(timeRemaining)}
-        titleColor="#fff"
+        titleColor={isDark ? "#fff" : "#333"}
         titleStyle={{ fontSize: 36, fontWeight: "bold" }}
         showProgressValue={false}
       />
@@ -166,7 +177,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 20,
+  },
+  darkText: {
     color: "#fff",
+  },
+  lightText: {
+    color: "#333",
   },
   buttonContainer: {
     flexDirection: "row",

@@ -1,19 +1,13 @@
 import React, { useState } from "react";
-import {
-  Modal,
-  SafeAreaView,
-  StyleSheet,
-  useColorScheme,
-  View,
-} from "react-native";
+import { Modal, SafeAreaView, StyleSheet, View } from "react-native";
 import TaskForm from "../components/TaskForm";
 import TaskList from "../components/TaskList";
 import { useTasksData } from "../hooks/useTasksData";
 import { Task } from "../stores/taskStore";
 
 export default function TasksScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  // Force dark theme
+  const isDark = true;
 
   // Task operations
   const { createTask, updateTask, fetchTasks } = useTasksData();
