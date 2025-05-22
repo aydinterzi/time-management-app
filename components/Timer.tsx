@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import CircularProgress from "react-native-circular-progress-indicator";
 import { useTimerStore } from "../stores/timerStore";
@@ -34,6 +34,9 @@ export default function Timer({ onComplete }: TimerProps) {
     complete,
   } = useTimerStore();
 
+  // Store the timestamp when the timer started or was last resumed
+  const [startTimestamp, setStartTimestamp] = useState<number | null>(null);
+
   // Handle timer interval
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -47,6 +50,11 @@ export default function Timer({ onComplete }: TimerProps) {
   // Start/pause timer effect
   useEffect(() => {
     if (state === "running") {
+      // Set the start timestamp when the timer starts running
+      if (startTimestamp === null) {
+        setStartTimestamp(Date.now());
+      }
+
       // Clear any existing interval
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -54,23 +62,40 @@ export default function Timer({ onComplete }: TimerProps) {
 
       // Create new interval
       intervalRef.current = setInterval(() => {
-        if (timeRemaining <= 1) {
+        // Calculate elapsed time based on the difference between now and the start timestamp
+        const now = Date.now();
+        const elapsedSeconds = Math.floor(
+          (now - (startTimestamp as number)) / 1000
+        );
+        const newTimeRemaining = Math.max(0, duration - elapsedSeconds);
+
+        if (newTimeRemaining <= 0) {
           // Timer complete
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
           }
           setTimeRemaining(0);
+          setStartTimestamp(null);
           onComplete?.();
           complete();
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } else {
-          // Decrement time remaining
-          setTimeRemaining(timeRemaining - 1);
+          // Update time remaining
+          setTimeRemaining(newTimeRemaining);
         }
-      }, 1000);
-    } else if (intervalRef.current) {
-      // Clear interval when not running
-      clearInterval(intervalRef.current);
+      }, 100); // Check more frequently to handle clock changes
+    } else if (state === "paused") {
+      // When paused, store the current timeRemaining but clear the startTimestamp
+      setStartTimestamp(null);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    } else if (state === "idle") {
+      // Reset the timestamp when idle
+      setStartTimestamp(null);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     }
 
     // Cleanup interval on unmount
@@ -79,7 +104,17 @@ export default function Timer({ onComplete }: TimerProps) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [state, timeRemaining, setTimeRemaining, complete, onComplete]);
+  }, [state, duration, startTimestamp, setTimeRemaining, complete, onComplete]);
+
+  // Update startTimestamp when resuming from pause
+  useEffect(() => {
+    if (state === "running" && startTimestamp === null) {
+      // Calculate what the start timestamp should be based on the current time remaining
+      const now = Date.now();
+      const adjustedStartTime = now - (duration - timeRemaining) * 1000;
+      setStartTimestamp(adjustedStartTime);
+    }
+  }, [state, startTimestamp, timeRemaining, duration]);
 
   // Generate timer color based on type
   const getTimerColor = () => {
@@ -100,11 +135,16 @@ export default function Timer({ onComplete }: TimerProps) {
     if (state === "idle") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       start();
+      setStartTimestamp(Date.now());
     } else if (state === "running") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       pause();
     } else if (state === "paused") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // When resuming, adjust the start timestamp based on the time that's already elapsed
+      const now = Date.now();
+      const adjustedStartTime = now - (duration - timeRemaining) * 1000;
+      setStartTimestamp(adjustedStartTime);
       resume();
     }
   };
@@ -112,6 +152,7 @@ export default function Timer({ onComplete }: TimerProps) {
   // Handle reset button press
   const handleReset = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setStartTimestamp(null);
     reset();
   };
 
@@ -119,6 +160,10 @@ export default function Timer({ onComplete }: TimerProps) {
   const buttonText =
     state === "running" ? "Pause" : state === "paused" ? "Resume" : "Start";
   const timerColor = getTimerColor();
+
+  // Calculate the percentage remaining for the progress indicator
+  const progressValue = state === "idle" ? duration : timeRemaining;
+  const progressMax = duration;
 
   return (
     <View style={styles.container}>
@@ -133,8 +178,8 @@ export default function Timer({ onComplete }: TimerProps) {
       </Text>
 
       <CircularProgress
-        value={timeRemaining}
-        maxValue={duration}
+        value={progressValue}
+        maxValue={progressMax}
         radius={120}
         activeStrokeWidth={15}
         inActiveStrokeWidth={15}
@@ -144,6 +189,8 @@ export default function Timer({ onComplete }: TimerProps) {
         titleColor={isDark ? "#fff" : "#333"}
         titleStyle={{ fontSize: 36, fontWeight: "bold" }}
         showProgressValue={false}
+        // Force reset when key changes to ensure the progress circle redraws correctly
+        key={`timer-${duration}-${timeRemaining}`}
       />
 
       <View style={styles.buttonContainer}>
