@@ -1,7 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -9,9 +10,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import DatabaseExample from "../components/DatabaseExample";
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const [showDatabaseExample, setShowDatabaseExample] = useState(false);
 
   // Force dark theme
   const isDark = true;
@@ -42,6 +45,22 @@ export default function SettingsScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* Database Testing Section */}
+        <TouchableOpacity onPress={() => setShowDatabaseExample(true)}>
+          <View style={styles.settingSection}>
+            <View style={styles.settingHeader}>
+              <MaterialIcons name="storage" size={24} color="#4caf50" />
+              <Text style={styles.settingTitle}>Database Testing</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              Test local database operations with Drizzle and SQLite
+            </Text>
+            <View style={styles.navigateContainer}>
+              <MaterialIcons name="arrow-forward" size={20} color="#aaa" />
+            </View>
+          </View>
+        </TouchableOpacity>
+
         {/* About Section - Placeholder for future settings */}
         <View style={styles.settingSection}>
           <View style={styles.settingHeader}>
@@ -49,10 +68,30 @@ export default function SettingsScreen() {
             <Text style={styles.settingTitle}>About</Text>
           </View>
           <Text style={styles.settingDescription}>
-            Time Management App v1.0
+            Time Management App v1.0 - Now with local-first database storage
           </Text>
         </View>
       </ScrollView>
+
+      {/* Database Example Modal */}
+      <Modal
+        visible={showDatabaseExample}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowDatabaseExample(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setShowDatabaseExample(false)}
+              style={styles.closeButton}
+            >
+              <MaterialIcons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <DatabaseExample />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -98,5 +137,18 @@ const styles = StyleSheet.create({
   navigateContainer: {
     alignItems: "flex-end",
     marginTop: 8,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#121212",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    padding: 16,
+    paddingTop: 50,
+  },
+  closeButton: {
+    padding: 8,
   },
 });

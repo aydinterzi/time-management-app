@@ -1,9 +1,7 @@
 import { useCallback } from "react";
+import { NewTask } from "../db/schema";
+import { taskService } from "../db/services";
 import { Task, useTaskStore } from "../stores/taskStore";
-
-// In-memory implementation that replaces database operations
-const mockTasks: Task[] = [];
-let nextTaskId = 1;
 
 export function useTasksData() {
   const {
@@ -16,16 +14,53 @@ export function useTasksData() {
     setLoading,
   } = useTaskStore();
 
-  // Fetch tasks from memory
+  // Convert database task to app task format
+  const convertDbTaskToAppTask = (dbTask: any): Task => ({
+    id: dbTask.id,
+    title: dbTask.title,
+    description: dbTask.description || "",
+    priority:
+      dbTask.priority === "high" ? 3 : dbTask.priority === "medium" ? 2 : 1,
+    estimated_pomodoros: 1, // Default value since not in DB schema
+    completed_pomodoros: 0, // Default value since not in DB schema
+    completed: dbTask.completed,
+    created_at: new Date(dbTask.created_at).getTime() / 1000,
+    completed_at: undefined, // Not tracked in current DB schema
+  });
+
+  // Convert app task to database task format
+  const convertAppTaskToDbTask = (
+    appTask: Partial<Task>
+  ): Partial<NewTask> => ({
+    title: appTask.title,
+    description: appTask.description,
+    priority:
+      appTask.priority === 3
+        ? "high"
+        : appTask.priority === 2
+        ? "medium"
+        : "low",
+    completed: appTask.completed,
+    due_date: undefined, // Not used in current app
+    category: undefined, // Not used in current app
+  });
+
+  // Fetch tasks from database
   const fetchTasks = useCallback(
     async (includeCompleted = false) => {
       try {
         setLoading(true);
-        const filteredTasks = includeCompleted
-          ? mockTasks
-          : mockTasks.filter((task) => !task.completed);
-        setTasks([...filteredTasks]);
-        return filteredTasks;
+        let dbTasks;
+
+        if (includeCompleted) {
+          dbTasks = await taskService.getAll();
+        } else {
+          dbTasks = await taskService.getByStatus(false);
+        }
+
+        const appTasks = dbTasks.map(convertDbTaskToAppTask);
+        setTasks(appTasks);
+        return appTasks;
       } catch (error) {
         console.error("Error fetching tasks:", error);
         return [];
@@ -46,21 +81,23 @@ export function useTasksData() {
     }) => {
       try {
         setLoading(true);
-        const newTask: Task = {
-          id: nextTaskId++,
+
+        const dbTaskData = convertAppTaskToDbTask({
           title: taskData.title,
           description: taskData.description || "",
           priority: taskData.priority || 1,
-          estimated_pomodoros: taskData.estimated_pomodoros || 1,
-          completed_pomodoros: 0,
           completed: false,
-          created_at: Math.floor(Date.now() / 1000),
-          completed_at: undefined,
-        };
+        });
 
-        mockTasks.push(newTask);
-        addTask(newTask);
-        return newTask;
+        const result = await taskService.create(dbTaskData as NewTask);
+
+        // Fetch the created task to get the ID
+        const createdTasks = await taskService.getAll();
+        const createdTask = createdTasks[createdTasks.length - 1]; // Get the last created task
+
+        const appTask = convertDbTaskToAppTask(createdTask);
+        addTask(appTask);
+        return appTask;
       } catch (error) {
         console.error("Error creating task:", error);
         return null;
@@ -87,13 +124,18 @@ export function useTasksData() {
     ) => {
       try {
         setLoading(true);
-        const taskIndex = mockTasks.findIndex((task) => task.id === taskId);
 
-        if (taskIndex !== -1) {
-          const updatedTask = { ...mockTasks[taskIndex], ...updates };
-          mockTasks[taskIndex] = updatedTask;
-          updateTask(updatedTask);
-          return updatedTask;
+        const dbUpdates = convertAppTaskToDbTask(updates);
+        await taskService.update(taskId, dbUpdates);
+
+        // Fetch the updated task
+        const updatedDbTasks = await taskService.getAll();
+        const updatedDbTask = updatedDbTasks.find((task) => task.id === taskId);
+
+        if (updatedDbTask) {
+          const updatedAppTask = convertDbTaskToAppTask(updatedDbTask);
+          updateTask(updatedAppTask);
+          return updatedAppTask;
         }
 
         return null;
@@ -112,15 +154,9 @@ export function useTasksData() {
     async (taskId: number) => {
       try {
         setLoading(true);
-        const taskIndex = mockTasks.findIndex((task) => task.id === taskId);
-
-        if (taskIndex !== -1) {
-          mockTasks.splice(taskIndex, 1);
-          removeTask(taskId);
-          return true;
-        }
-
-        return false;
+        await taskService.delete(taskId);
+        removeTask(taskId);
+        return true;
       } catch (error) {
         console.error("Error deleting task:", error);
         return false;
@@ -136,16 +172,9 @@ export function useTasksData() {
     async (taskId: number) => {
       try {
         setLoading(true);
-        const taskIndex = mockTasks.findIndex((task) => task.id === taskId);
-
-        if (taskIndex !== -1) {
-          mockTasks[taskIndex].completed = true;
-          mockTasks[taskIndex].completed_at = Math.floor(Date.now() / 1000);
-          markTaskCompleted(taskId);
-          return true;
-        }
-
-        return false;
+        await taskService.update(taskId, { completed: true });
+        markTaskCompleted(taskId);
+        return true;
       } catch (error) {
         console.error("Error completing task:", error);
         return false;
@@ -156,20 +185,14 @@ export function useTasksData() {
     [markTaskCompleted, setLoading]
   );
 
-  // Increment completed pomodoros for a task
+  // Increment completed pomodoros for a task (this is app-specific, not stored in DB)
   const incrementPomodoro = useCallback(
     async (taskId: number) => {
       try {
         setLoading(true);
-        const taskIndex = mockTasks.findIndex((task) => task.id === taskId);
-
-        if (taskIndex !== -1) {
-          mockTasks[taskIndex].completed_pomodoros += 1;
-          incrementTaskPomodoro(taskId);
-          return true;
-        }
-
-        return false;
+        // Since pomodoros aren't tracked in the DB schema, we'll just update the store
+        incrementTaskPomodoro(taskId);
+        return true;
       } catch (error) {
         console.error("Error incrementing pomodoro:", error);
         return false;

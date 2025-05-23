@@ -1,26 +1,49 @@
+import { db, expo_sqlite } from "@/db/client";
+import migrations from "@/drizzle/migrations";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
+import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
+import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
 import { useFonts } from "expo-font";
 import { Tabs } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { useColorScheme } from "react-native";
 import { PaperProvider } from "react-native-paper";
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   // Force dark theme across the entire app
   const isDark = true; // colorScheme === "dark";
 
-  const [loaded] = useFonts({
+  const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
+  const { success, error: migrationError } = useMigrations(db, migrations);
+
+  useDrizzleStudio(expo_sqlite);
+
+  useEffect(() => {
+    if (error) throw error;
+    if (migrationError) throw migrationError;
+  }, [error, migrationError]);
+
+  useEffect(() => {
+    if (loaded && success) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded, success]);
+
+  if (!loaded || !success) {
     return null;
   }
 

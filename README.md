@@ -1,50 +1,201 @@
-# Welcome to your Expo app 👋
+# Time Management App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A local-first time management app built with Expo, React Native, and Drizzle ORM for local SQLite storage.
 
-## Get started
+## Features
 
-1. Install dependencies
+- ⏱️ Pomodoro Timer with customizable work/break durations
+- ✅ Task Management with priority levels
+- 📊 Statistics and productivity tracking
+- 🗄️ Local-first data storage with SQLite
+- 🌙 Dark theme UI
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+### Core Framework
 
-   ```bash
-   npx expo start
-   ```
+- **Expo** - Cross-platform React Native framework
+- **Expo Router** - File-based routing
+- **React Native Paper** - Material Design components
 
-In the output, you'll find options to open the app in a
+### Database & Storage
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- **Expo SQLite** - Local SQLite database
+- **Drizzle ORM** - TypeScript ORM for SQL databases
+- **Drizzle Kit** - CLI tool for database migrations
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### State Management
 
-## Get a fresh project
+- **Zustand** - Lightweight state management
 
-When you're ready, run:
+## Database Schema
+
+The app uses a local SQLite database with the following tables:
+
+### Tasks
+
+- `id` - Primary key
+- `title` - Task title
+- `description` - Task description
+- `completed` - Boolean completion status
+- `priority` - Priority level (low, medium, high)
+- `category` - Task category
+- `due_date` - Due date
+- `created_at` - Creation timestamp
+- `updated_at` - Last update timestamp
+
+### Habits
+
+- `id` - Primary key
+- `name` - Habit name
+- `description` - Habit description
+- `created_at` - Creation timestamp
+
+### Habit Completions
+
+- `id` - Primary key
+- `habit_id` - Foreign key to habits table
+- `completed_date` - Date of completion (YYYY-MM-DD)
+- `notes` - Optional notes
+- `created_at` - Creation timestamp
+
+### Time Sessions
+
+- `id` - Primary key
+- `task_id` - Optional foreign key to tasks table
+- `category` - Session category (work, study, break, etc.)
+- `duration_minutes` - Session duration in minutes
+- `start_time` - Session start time
+- `end_time` - Session end time
+- `notes` - Optional notes
+- `created_at` - Creation timestamp
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or later)
+- npm or yarn
+- Expo CLI
+
+### Installation
+
+1. Clone the repository
 
 ```bash
-npm run reset-project
+git clone <repository-url>
+cd time-management-app
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Install dependencies
 
-## Learn more
+```bash
+npm install
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+3. Install Expo SQLite and Drizzle dependencies
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npx expo install expo-sqlite
+npm i drizzle-orm
+npm i -D drizzle-kit babel-plugin-inline-import
+```
 
-## Join the community
+4. Generate database migrations
 
-Join our community of developers creating universal apps.
+```bash
+npx drizzle-kit generate
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+5. Start the development server
+
+```bash
+npx expo start
+```
+
+## Database Development
+
+### Drizzle Studio
+
+The app includes Drizzle Studio integration for database inspection during development. When running the app in development mode, you can access the database browser through the Expo dev tools.
+
+### Database Testing
+
+Navigate to Settings > Database Testing to test database operations including:
+
+- Creating sample tasks and habits
+- Viewing stored data
+- Clearing all data
+
+### Making Schema Changes
+
+1. Update the schema in `db/schema.ts`
+2. Generate new migrations:
+
+```bash
+npx drizzle-kit generate
+```
+
+3. The migrations will be automatically applied on app startup
+
+## Project Structure
+
+```
+├── app/                    # Expo Router pages
+│   ├── _layout.tsx        # Root layout with database setup
+│   ├── index.tsx          # Timer screen
+│   ├── tasks.tsx          # Task management
+│   ├── stats.tsx          # Statistics
+│   └── settings.tsx       # Settings with database testing
+├── components/            # Reusable components
+│   └── DatabaseExample.tsx # Database testing component
+├── db/                    # Database configuration
+│   ├── client.ts          # Database client setup
+│   ├── schema.ts          # Database schema definition
+│   └── services.ts        # Database service functions
+├── drizzle/              # Generated migrations
+├── hooks/                # Custom React hooks
+│   └── useTasksData.ts   # Task data management hook
+├── stores/               # Zustand stores
+│   └── taskStore.ts      # Task state management
+├── babel.config.js       # Babel configuration for SQL imports
+├── drizzle.config.ts     # Drizzle Kit configuration
+└── metro.config.js       # Metro bundler configuration
+```
+
+## Local-First Architecture
+
+This app implements a local-first approach where:
+
+- All data is stored locally on the device using SQLite
+- No internet connection required for core functionality
+- Data persists across app sessions
+- Fast, responsive user experience with immediate data access
+
+## Development Tools
+
+### Drizzle Studio
+
+Access the database browser during development to inspect and modify data directly.
+
+### Database Services
+
+The `db/services.ts` file provides a clean API for database operations:
+
+- `taskService` - CRUD operations for tasks
+- `habitService` - CRUD operations for habits
+- `habitCompletionService` - Habit completion tracking
+- `timeSessionService` - Time tracking sessions
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Update database schema if needed and generate migrations
+5. Test your changes
+6. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
