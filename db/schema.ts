@@ -1,13 +1,5 @@
 import { int, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-// Habits table for tracking daily habits
-export const habits = sqliteTable("habits", {
-  id: int().primaryKey({ autoIncrement: true }),
-  name: text().notNull(),
-  description: text(),
-  created_at: text().default("CURRENT_TIMESTAMP"),
-});
-
 // Tasks table for todo items and productivity tasks
 export const tasks = sqliteTable("tasks", {
   id: int().primaryKey({ autoIncrement: true }),
@@ -19,15 +11,6 @@ export const tasks = sqliteTable("tasks", {
   due_date: text(),
   created_at: text().default("CURRENT_TIMESTAMP"),
   updated_at: text().default("CURRENT_TIMESTAMP"),
-});
-
-// Habit completions table for tracking daily habit completion
-export const habitCompletions = sqliteTable("habit_completions", {
-  id: int().primaryKey({ autoIncrement: true }),
-  habit_id: int().notNull(),
-  completed_date: text().notNull(), // YYYY-MM-DD format
-  notes: text(),
-  created_at: text().default("CURRENT_TIMESTAMP"),
 });
 
 // Time tracking sessions for productivity monitoring
@@ -43,14 +26,8 @@ export const timeSessions = sqliteTable("time_sessions", {
 });
 
 // Infer types for use in the application
-export type Habit = typeof habits.$inferSelect;
-export type NewHabit = typeof habits.$inferInsert;
-
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
-
-export type HabitCompletion = typeof habitCompletions.$inferSelect;
-export type NewHabitCompletion = typeof habitCompletions.$inferInsert;
 
 export type TimeSession = typeof timeSessions.$inferSelect;
 export type NewTimeSession = typeof timeSessions.$inferInsert;

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import {
   Platform,
   SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -394,50 +395,55 @@ export default function TimerScreen() {
             </TouchableOpacity>
           </View>
 
-          {tasks.length > 0 ? (
-            tasks.map((task) => (
-              <TouchableOpacity
-                key={task.id}
-                style={[
-                  styles.taskSelectItem,
-                  isDark ? styles.darkTaskItem : styles.lightTaskItem,
-                  activeTaskId === task.id && styles.taskSelectItemActive,
-                ]}
-                onPress={() => handleTaskSelect(task)}
-              >
-                <Text
+          <ScrollView
+            style={styles.taskScrollView}
+            showsVerticalScrollIndicator={false}
+          >
+            {tasks.length > 0 ? (
+              tasks.map((task) => (
+                <TouchableOpacity
+                  key={task.id}
                   style={[
-                    styles.taskSelectItemTitle,
-                    isDark ? styles.darkText : styles.lightText,
+                    styles.taskSelectItem,
+                    isDark ? styles.darkTaskItem : styles.lightTaskItem,
+                    activeTaskId === task.id && styles.taskSelectItemActive,
                   ]}
+                  onPress={() => handleTaskSelect(task)}
                 >
-                  {task.title}
-                </Text>
-                <View style={styles.taskSelectItemMeta}>
                   <Text
                     style={[
-                      styles.taskSelectItemCount,
-                      isDark ? styles.darkSubText : styles.lightSubText,
+                      styles.taskSelectItemTitle,
+                      isDark ? styles.darkText : styles.lightText,
                     ]}
                   >
-                    {task.completed_pomodoros}/{task.estimated_pomodoros}{" "}
-                    pomodoros
+                    {task.title}
                   </Text>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.emptyTasksMessage}>
-              <Text
-                style={[
-                  styles.emptyTasksText,
-                  isDark ? styles.darkSubText : styles.lightSubText,
-                ]}
-              >
-                No tasks available. Add tasks in the Tasks tab.
-              </Text>
-            </View>
-          )}
+                  <View style={styles.taskSelectItemMeta}>
+                    <Text
+                      style={[
+                        styles.taskSelectItemCount,
+                        isDark ? styles.darkSubText : styles.lightSubText,
+                      ]}
+                    >
+                      {task.completed_pomodoros}/{task.estimated_pomodoros}{" "}
+                      pomodoros
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyTasksMessage}>
+                <Text
+                  style={[
+                    styles.emptyTasksText,
+                    isDark ? styles.darkSubText : styles.lightSubText,
+                  ]}
+                >
+                  No tasks available. Add tasks in the Tasks tab.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
       )}
     </SafeAreaView>
@@ -592,5 +598,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     marginLeft: 8,
+  },
+  taskScrollView: {
+    flex: 1,
   },
 });

@@ -1,31 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "./client";
-import type {
-  NewHabit,
-  NewHabitCompletion,
-  NewTask,
-  NewTimeSession,
-} from "./schema";
-import { habitCompletions, habits, tasks, timeSessions } from "./schema";
-
-// Habit operations
-export const habitService = {
-  // Get all habits
-  getAll: () => db.select().from(habits),
-
-  // Create a new habit
-  create: (habit: NewHabit) => db.insert(habits).values(habit),
-
-  // Update a habit
-  update: (id: number, updates: Partial<NewHabit>) =>
-    db.update(habits).set(updates).where(eq(habits.id, id)),
-
-  // Delete a habit
-  delete: (id: number) => db.delete(habits).where(eq(habits.id, id)),
-
-  // Get habit by id
-  getById: (id: number) => db.select().from(habits).where(eq(habits.id, id)),
-};
+import type { NewTask, NewTimeSession } from "./schema";
+import { tasks, timeSessions } from "./schema";
 
 // Task operations
 export const taskService = {
@@ -58,32 +34,6 @@ export const taskService = {
 
   // Delete a task
   delete: (id: number) => db.delete(tasks).where(eq(tasks.id, id)),
-};
-
-// Habit completion operations
-export const habitCompletionService = {
-  // Get all completions for a habit
-  getByHabit: (habitId: number) =>
-    db
-      .select()
-      .from(habitCompletions)
-      .where(eq(habitCompletions.habit_id, habitId)),
-
-  // Mark habit as completed for a date
-  markComplete: (completion: NewHabitCompletion) =>
-    db.insert(habitCompletions).values(completion),
-
-  // Get completion for specific date
-  getByDate: (habitId: number, date: string) =>
-    db
-      .select()
-      .from(habitCompletions)
-      .where(
-        and(
-          eq(habitCompletions.habit_id, habitId),
-          eq(habitCompletions.completed_date, date)
-        )
-      ),
 };
 
 // Time session operations

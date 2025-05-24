@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { NewHabit, NewTask } from "../db/schema";
-import { habitService, taskService } from "../db/services";
+import { NewTask } from "../db/schema";
+import { taskService } from "../db/services";
 
 export default function DatabaseExample() {
   const [tasks, setTasks] = useState<any[]>([]);
-  const [habits, setHabits] = useState<any[]>([]);
 
   // Load data on component mount
   useEffect(() => {
@@ -15,9 +14,7 @@ export default function DatabaseExample() {
   const loadData = async () => {
     try {
       const allTasks = await taskService.getAll();
-      const allHabits = await habitService.getAll();
       setTasks(allTasks);
-      setHabits(allHabits);
     } catch (error) {
       console.error("Error loading data:", error);
     }
@@ -41,32 +38,11 @@ export default function DatabaseExample() {
     }
   };
 
-  const addSampleHabit = async () => {
-    try {
-      const newHabit: NewHabit = {
-        name: `Sample Habit ${Date.now()}`,
-        description: "This is a sample habit created with Drizzle",
-      };
-
-      await habitService.create(newHabit);
-      await loadData(); // Refresh data
-      Alert.alert("Success", "Sample habit added!");
-    } catch (error) {
-      console.error("Error adding habit:", error);
-      Alert.alert("Error", "Failed to add habit");
-    }
-  };
-
   const clearAllData = async () => {
     try {
       // Delete all tasks
       for (const task of tasks) {
         await taskService.delete(task.id);
-      }
-
-      // Delete all habits
-      for (const habit of habits) {
-        await habitService.delete(habit.id);
       }
 
       await loadData(); // Refresh data
@@ -85,16 +61,8 @@ export default function DatabaseExample() {
         <Text style={styles.sectionTitle}>Tasks ({tasks.length})</Text>
         {tasks.map((task, index) => (
           <Text key={task.id} style={styles.item}>
-            {index + 1}. {task.title} - {task.priority}
-          </Text>
-        ))}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Habits ({habits.length})</Text>
-        {habits.map((habit, index) => (
-          <Text key={habit.id} style={styles.item}>
-            {index + 1}. {habit.name}
+            {index + 1}. {task.title} - {task.priority} -{" "}
+            {task.completed ? "✓" : "○"}
           </Text>
         ))}
       </View>
@@ -104,15 +72,11 @@ export default function DatabaseExample() {
           <Text style={styles.buttonText}>Add Sample Task</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.button} onPress={addSampleHabit}>
-          <Text style={styles.buttonText}>Add Sample Habit</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity
           style={[styles.button, styles.dangerButton]}
           onPress={clearAllData}
         >
-          <Text style={styles.buttonText}>Clear All Data</Text>
+          <Text style={styles.buttonText}>Clear All Tasks</Text>
         </TouchableOpacity>
       </View>
     </View>

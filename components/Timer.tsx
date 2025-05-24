@@ -83,7 +83,7 @@ export default function Timer({ onComplete }: TimerProps) {
           // Update time remaining
           setTimeRemaining(newTimeRemaining);
         }
-      }, 100); // Check more frequently to handle clock changes
+      }, 1000); // Update every second for better performance
     } else if (state === "paused") {
       // When paused, store the current timeRemaining but clear the startTimestamp
       setStartTimestamp(null);
@@ -189,8 +189,7 @@ export default function Timer({ onComplete }: TimerProps) {
         titleColor={isDark ? "#fff" : "#333"}
         titleStyle={{ fontSize: 36, fontWeight: "bold" }}
         showProgressValue={false}
-        // Force reset when key changes to ensure the progress circle redraws correctly
-        key={`timer-${duration}-${timeRemaining}`}
+        key={`timer-${type}-${duration}`}
       />
 
       <View style={styles.buttonContainer}>
