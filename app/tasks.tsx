@@ -53,8 +53,7 @@ export default function TasksScreen() {
       }
 
       setShowTaskForm(false);
-      // Refresh task list
-      fetchTasks();
+      // No need to call fetchTasks() here as the hook already updates the global store
     } catch (error) {
       console.error("Error submitting task:", error);
     }

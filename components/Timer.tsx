@@ -76,8 +76,12 @@ export default function Timer({ onComplete }: TimerProps) {
           }
           setTimeRemaining(0);
           setStartTimestamp(null);
+
+          // Call completion handler before setting state to completed
           onComplete?.();
           complete();
+
+          // Trigger haptic feedback
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } else {
           // Update time remaining
@@ -193,12 +197,21 @@ export default function Timer({ onComplete }: TimerProps) {
       />
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: timerColor }]}
-          onPress={handlePlayPause}
-        >
-          <Text style={styles.buttonText}>{buttonText}</Text>
-        </TouchableOpacity>
+        {state === "completed" ? (
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: timerColor }]}
+            onPress={handlePlayPause}
+          >
+            <Text style={styles.buttonText}>Start Next Session</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: timerColor }]}
+            onPress={handlePlayPause}
+          >
+            <Text style={styles.buttonText}>{buttonText}</Text>
+          </TouchableOpacity>
+        )}
 
         {(state === "paused" || state === "completed") && (
           <TouchableOpacity

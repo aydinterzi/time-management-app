@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { useTasksData } from "../hooks/useTasksData";
-import { Task } from "../stores/taskStore";
+import { Task, useTaskStore } from "../stores/taskStore";
 import TaskItem from "./TaskItem";
 
 interface TaskListProps {
@@ -27,9 +27,10 @@ export default function TaskList({
 }: TaskListProps) {
   const { fetchTasks, completeTask, deleteTask } = useTasksData();
 
-  // Component state
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Use global store instead of local state
+  const { tasks, isLoading } = useTaskStore();
+
+  // Component state - only for UI state, not data
   const [showCompletedTasks, setShowCompletedTasks] = useState(showCompleted);
 
   // Load tasks from database
@@ -39,14 +40,11 @@ export default function TaskList({
 
   // Load tasks from the database
   const loadTasks = async () => {
-    setIsLoading(true);
     try {
-      const result = await fetchTasks(showCompletedTasks);
-      setTasks(result as Task[]);
+      // Always fetch all tasks and filter in the component
+      await fetchTasks(true);
     } catch (error) {
       console.error("Error loading tasks:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -128,7 +126,9 @@ export default function TaskList({
       </View>
 
       <FlatList
-        data={tasks}
+        data={
+          showCompletedTasks ? tasks : tasks.filter((task) => !task.completed)
+        }
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <TaskItem
@@ -140,7 +140,10 @@ export default function TaskList({
           />
         )}
         contentContainerStyle={
-          tasks.length === 0 ? { flex: 1 } : styles.listContent
+          (showCompletedTasks ? tasks : tasks.filter((task) => !task.completed))
+            .length === 0
+            ? { flex: 1 }
+            : styles.listContent
         }
         ListEmptyComponent={renderEmptyComponent}
       />

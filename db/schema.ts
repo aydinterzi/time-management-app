@@ -9,6 +9,8 @@ export const tasks = sqliteTable("tasks", {
   priority: text().default("medium"), // low, medium, high
   category: text(),
   due_date: text(),
+  estimated_pomodoros: int().default(1),
+  completed_pomodoros: int().default(0),
   created_at: text().default("CURRENT_TIMESTAMP"),
   updated_at: text().default("CURRENT_TIMESTAMP"),
 });

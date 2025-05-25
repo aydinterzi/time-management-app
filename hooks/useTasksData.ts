@@ -21,8 +21,8 @@ export function useTasksData() {
     description: dbTask.description || "",
     priority:
       dbTask.priority === "high" ? 3 : dbTask.priority === "medium" ? 2 : 1,
-    estimated_pomodoros: 1, // Default value since not in DB schema
-    completed_pomodoros: 0, // Default value since not in DB schema
+    estimated_pomodoros: dbTask.estimated_pomodoros || 1,
+    completed_pomodoros: dbTask.completed_pomodoros || 0,
     completed: dbTask.completed,
     created_at: new Date(dbTask.created_at).getTime() / 1000,
     completed_at: undefined, // Not tracked in current DB schema
@@ -41,6 +41,8 @@ export function useTasksData() {
         ? "medium"
         : "low",
     completed: appTask.completed,
+    estimated_pomodoros: appTask.estimated_pomodoros,
+    completed_pomodoros: appTask.completed_pomodoros,
     due_date: undefined, // Not used in current app
     category: undefined, // Not used in current app
   });
@@ -91,11 +93,10 @@ export function useTasksData() {
 
         const result = await taskService.create(dbTaskData as NewTask);
 
-        // Fetch the created task to get the ID
-        const createdTasks = await taskService.getAll();
-        const createdTask = createdTasks[createdTasks.length - 1]; // Get the last created task
+        // Get the created task from the result
+        const createdDbTask = result[0]; // returning() returns an array
 
-        const appTask = convertDbTaskToAppTask(createdTask);
+        const appTask = convertDbTaskToAppTask(createdDbTask);
         addTask(appTask);
         return appTask;
       } catch (error) {
@@ -185,13 +186,29 @@ export function useTasksData() {
     [markTaskCompleted, setLoading]
   );
 
-  // Increment completed pomodoros for a task (this is app-specific, not stored in DB)
+  // Increment completed pomodoros for a task
   const incrementPomodoro = useCallback(
     async (taskId: number) => {
       try {
         setLoading(true);
-        // Since pomodoros aren't tracked in the DB schema, we'll just update the store
-        incrementTaskPomodoro(taskId);
+
+        // Get current task to increment its pomodoro count
+        const currentTasks = await taskService.getAll();
+        const currentTask = currentTasks.find((task) => task.id === taskId);
+
+        if (currentTask) {
+          const newCompletedPomodoros =
+            (currentTask.completed_pomodoros || 0) + 1;
+
+          // Update in database
+          await taskService.update(taskId, {
+            completed_pomodoros: newCompletedPomodoros,
+          });
+
+          // Update in store
+          incrementTaskPomodoro(taskId);
+        }
+
         return true;
       } catch (error) {
         console.error("Error incrementing pomodoro:", error);

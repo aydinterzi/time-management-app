@@ -1,9 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
+import { useFocusEffect } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -11,12 +11,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Timer from "../components/Timer";
 import { useSessionsData } from "../hooks/useSessionsData";
 import { useSettingsData } from "../hooks/useSettingsData";
 import { useTasksData } from "../hooks/useTasksData";
 import { AppSettings } from "../stores/settingsStore";
-import { Task } from "../stores/taskStore";
+import { Task, useTaskStore } from "../stores/taskStore";
 import { useTimerStore } from "../stores/timerStore";
 
 export default function TimerScreen() {
@@ -28,14 +29,19 @@ export default function TimerScreen() {
     type,
     duration,
     activeTaskId,
+    completedSessions,
+    setType,
     setDuration,
     setActiveTaskId,
+    setSessionId,
     incrementCompletedSessions,
     resetCompletedSessions,
+    reset: resetTimer,
   } = useTimerStore();
 
-  // Task operations
+  // Task operations and global store
   const { fetchTasks, incrementPomodoro } = useTasksData();
+  const { tasks } = useTaskStore();
 
   // Session operations
   const { startSession, completeSession } = useSessionsData();
@@ -50,14 +56,23 @@ export default function TimerScreen() {
   const [showTimerSettings, setShowTimerSettings] = useState(false);
 
   // Component state
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [showTaskSelect, setShowTaskSelect] = useState(false);
+  const [completionMessage, setCompletionMessage] = useState<string | null>(
+    null
+  );
 
   // Load settings and tasks on component mount
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Refresh tasks when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadTasks();
+    }, [])
+  );
 
   // Watch for active task changes
   useEffect(() => {
@@ -91,25 +106,104 @@ export default function TimerScreen() {
       }
 
       // Load tasks
-      const result = await fetchTasks(false);
-      setTasks(result as Task[]);
+      await loadTasks();
     } catch (error) {
       console.error("Error loading initial data:", error);
+    }
+  };
+
+  // Load tasks from the database
+  const loadTasks = async () => {
+    try {
+      await fetchTasks(true);
+    } catch (error) {
+      console.error("Error loading tasks:", error);
     }
   };
 
   // Handle timer completion
   const handleTimerComplete = async () => {
     try {
-      // Complete current session
-      if (type === "work" && activeTaskId) {
-        // Increment pomodoro count for the task
-        await incrementPomodoro(activeTaskId);
+      console.log(`Timer completed: ${type} session`);
+
+      // Handle work session completion
+      if (type === "work") {
+        // Show completion message
+        setCompletionMessage("🎉 Focus session completed! Great work!");
+
+        // Increment pomodoro count for the task if one is selected
+        if (activeTaskId) {
+          await incrementPomodoro(activeTaskId);
+        }
+
+        // Increment completed sessions counter
         incrementCompletedSessions();
+
+        // Create and complete a work session for statistics
+        const sessionId = await startSession(activeTaskId, "work", duration);
+        if (sessionId) {
+          await completeSession(sessionId);
+        }
+
+        // Determine next break type based on completed sessions
+        // Every 4th session gets a long break, others get short break
+        const nextIsLongBreak = (completedSessions + 1) % 4 === 0;
+        const nextType = nextIsLongBreak ? "long_break" : "short_break";
+        const nextDuration = nextIsLongBreak
+          ? longBreakMinutes * 60
+          : shortBreakMinutes * 60;
+
+        console.log(
+          `Switching to ${nextType} (${
+            nextIsLongBreak ? longBreakMinutes : shortBreakMinutes
+          } minutes)`
+        );
+
+        // Switch to break
+        setTimeout(() => {
+          setType(nextType);
+          setDuration(nextDuration);
+          resetTimer();
+        }, 2000);
+
+        // Update completion message for break
+        setTimeout(() => {
+          setCompletionMessage(
+            nextIsLongBreak
+              ? "☕ Time for a long break! You've earned it."
+              : "☕ Time for a short break! Step away from your work."
+          );
+        }, 2000);
+      } else {
+        // Handle break session completion
+        console.log(`Break completed, switching to work session`);
+
+        // Show completion message
+        setCompletionMessage("✨ Break time is over! Ready to focus?");
+
+        // Create and complete a break session for statistics
+        const sessionId = await startSession(null, type, duration);
+        if (sessionId) {
+          await completeSession(sessionId);
+        }
+
+        // Switch back to work
+        setTimeout(() => {
+          setType("work");
+          setDuration(workMinutes * 60);
+          resetTimer();
+        }, 2000);
+
+        // Update completion message for work
+        setTimeout(() => {
+          setCompletionMessage("🚀 Ready for your next focus session!");
+        }, 2000);
       }
 
-      // TODO: Switch to next timer type (work -> break, break -> work)
-      // This will be implemented in the next task
+      // Clear completion message after 5 seconds
+      setTimeout(() => {
+        setCompletionMessage(null);
+      }, 5000);
     } catch (error) {
       console.error("Error handling timer completion:", error);
     }
@@ -180,6 +274,55 @@ export default function TimerScreen() {
 
       <View style={styles.timerContainer}>
         <Timer onComplete={handleTimerComplete} />
+
+        {/* Completion Message */}
+        {completionMessage && (
+          <View
+            style={[
+              styles.completionMessage,
+              isDark
+                ? styles.darkCompletionMessage
+                : styles.lightCompletionMessage,
+            ]}
+          >
+            <Text
+              style={[
+                styles.completionText,
+                isDark ? styles.darkText : styles.lightText,
+              ]}
+            >
+              {completionMessage}
+            </Text>
+          </View>
+        )}
+
+        {/* Session Progress Indicator */}
+        <View style={styles.sessionIndicator}>
+          <Text
+            style={[
+              styles.sessionText,
+              isDark ? styles.darkSubText : styles.lightSubText,
+            ]}
+          >
+            Session {completedSessions + 1} •{" "}
+            {type === "work"
+              ? "Focus Time"
+              : type === "short_break"
+              ? "Short Break"
+              : "Long Break"}
+          </Text>
+          <View style={styles.sessionDots}>
+            {[1, 2, 3, 4].map((num) => (
+              <View
+                key={num}
+                style={[
+                  styles.sessionDot,
+                  completedSessions % 4 >= num - 1 && styles.sessionDotActive,
+                ]}
+              />
+            ))}
+          </View>
+        </View>
 
         {/* Timer Settings Button */}
         <TouchableOpacity
@@ -399,38 +542,40 @@ export default function TimerScreen() {
             style={styles.taskScrollView}
             showsVerticalScrollIndicator={false}
           >
-            {tasks.length > 0 ? (
-              tasks.map((task) => (
-                <TouchableOpacity
-                  key={task.id}
-                  style={[
-                    styles.taskSelectItem,
-                    isDark ? styles.darkTaskItem : styles.lightTaskItem,
-                    activeTaskId === task.id && styles.taskSelectItemActive,
-                  ]}
-                  onPress={() => handleTaskSelect(task)}
-                >
-                  <Text
+            {tasks.filter((task) => !task.completed).length > 0 ? (
+              tasks
+                .filter((task) => !task.completed)
+                .map((task) => (
+                  <TouchableOpacity
+                    key={task.id}
                     style={[
-                      styles.taskSelectItemTitle,
-                      isDark ? styles.darkText : styles.lightText,
+                      styles.taskSelectItem,
+                      isDark ? styles.darkTaskItem : styles.lightTaskItem,
+                      activeTaskId === task.id && styles.taskSelectItemActive,
                     ]}
+                    onPress={() => handleTaskSelect(task)}
                   >
-                    {task.title}
-                  </Text>
-                  <View style={styles.taskSelectItemMeta}>
                     <Text
                       style={[
-                        styles.taskSelectItemCount,
-                        isDark ? styles.darkSubText : styles.lightSubText,
+                        styles.taskSelectItemTitle,
+                        isDark ? styles.darkText : styles.lightText,
                       ]}
                     >
-                      {task.completed_pomodoros}/{task.estimated_pomodoros}{" "}
-                      pomodoros
+                      {task.title}
                     </Text>
-                  </View>
-                </TouchableOpacity>
-              ))
+                    <View style={styles.taskSelectItemMeta}>
+                      <Text
+                        style={[
+                          styles.taskSelectItemCount,
+                          isDark ? styles.darkSubText : styles.lightSubText,
+                        ]}
+                      >
+                        {task.completed_pomodoros}/{task.estimated_pomodoros}{" "}
+                        pomodoros
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
             ) : (
               <View style={styles.emptyTasksMessage}>
                 <Text
@@ -465,6 +610,29 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  sessionIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  sessionText: {
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  sessionDots: {
+    flexDirection: "row",
+    marginLeft: 8,
+  },
+  sessionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#333",
+    marginHorizontal: 2,
+  },
+  sessionDotActive: {
+    backgroundColor: "#625df5",
   },
   timerSettingsButton: {
     flexDirection: "row",
@@ -601,5 +769,27 @@ const styles = StyleSheet.create({
   },
   taskScrollView: {
     flex: 1,
+  },
+  completionMessage: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  darkCompletionMessage: {
+    backgroundColor: "rgba(30, 30, 30, 0.95)",
+  },
+  lightCompletionMessage: {
+    backgroundColor: "rgba(240, 240, 240, 0.95)",
+  },
+  completionText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+    paddingHorizontal: 20,
   },
 });

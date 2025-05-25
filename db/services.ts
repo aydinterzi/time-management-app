@@ -13,7 +13,7 @@ export const taskService = {
     db.select().from(tasks).where(eq(tasks.completed, completed)),
 
   // Create a new task
-  create: (task: NewTask) => db.insert(tasks).values(task),
+  create: (task: NewTask) => db.insert(tasks).values(task).returning(),
 
   // Update a task
   update: (id: number, updates: Partial<NewTask>) =>
