@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Modal, SafeAreaView, StyleSheet, View } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import TaskForm from "../components/TaskForm";
 import TaskList from "../components/TaskList";
 import { useTasksData } from "../hooks/useTasksData";
@@ -61,6 +62,7 @@ export default function TasksScreen() {
 
   return (
     <SafeAreaView
+      edges={["top", "left", "right"]}
       style={[
         styles.container,
         isDark ? styles.darkContainer : styles.lightContainer,

@@ -1,55 +1,76 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-export interface AppSettings {
-  work_duration: number;
-  short_break_duration: number;
-  long_break_duration: number;
-  long_break_interval: number;
-  auto_start_breaks: boolean;
-  auto_start_pomodoros: boolean;
-  sound_enabled: boolean;
-  vibration_enabled: boolean;
-  notification_enabled: boolean;
-}
+export interface SettingsState {
+  // Pomodoro cycle settings
+  long_break_interval: number; // Number of work sessions before a long break (2-8)
 
-interface SettingsStore {
-  // Settings state
-  settings: AppSettings;
+  // Automatic behavior settings
+  auto_start_breaks: boolean; // Auto-start break timers after work sessions
+  auto_start_pomodoros: boolean; // Auto-start work timers after breaks
+
+  // Actions
+  updateSetting: <K extends keyof SettingsState>(
+    key: K,
+    value: SettingsState[K]
+  ) => void;
+  updateMultipleSettings: (updates: Partial<SettingsState>) => void;
+  resetToDefaults: () => void;
   isLoading: boolean;
-
-  // Settings actions
-  setSettings: (settings: AppSettings) => void;
-  updateSettings: (updates: Partial<AppSettings>) => void;
-
-  // Loading state
-  setLoading: (isLoading: boolean) => void;
 }
 
-// Default settings values
-const DEFAULT_SETTINGS: AppSettings = {
-  work_duration: 25 * 60, // 25 minutes in seconds
-  short_break_duration: 5 * 60, // 5 minutes in seconds
-  long_break_duration: 15 * 60, // 15 minutes in seconds
-  long_break_interval: 4, // After 4 pomodoros
+const defaultSettings = {
+  long_break_interval: 4,
   auto_start_breaks: false,
   auto_start_pomodoros: false,
-  sound_enabled: true,
-  vibration_enabled: true,
-  notification_enabled: true,
+  isLoading: false,
 };
 
-export const useSettingsStore = create<SettingsStore>((set) => ({
-  // Initial settings state
-  settings: DEFAULT_SETTINGS,
-  isLoading: false,
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set, get) => ({
+      ...defaultSettings,
 
-  // Settings state setters
-  setSettings: (settings) => set({ settings }),
-  updateSettings: (updates) =>
-    set((state) => ({
-      settings: { ...state.settings, ...updates },
-    })),
+      updateSetting: <K extends keyof SettingsState>(
+        key: K,
+        value: SettingsState[K]
+      ) => {
+        set({ isLoading: true });
 
-  // Loading state
-  setLoading: (isLoading) => set({ isLoading }),
-}));
+        setTimeout(() => {
+          set({ [key]: value, isLoading: false });
+        }, 100);
+      },
+
+      updateMultipleSettings: (updates: Partial<SettingsState>) => {
+        set({ isLoading: true });
+
+        setTimeout(() => {
+          set({ ...updates, isLoading: false });
+        }, 100);
+      },
+
+      resetToDefaults: () => {
+        set({ isLoading: true });
+
+        setTimeout(() => {
+          set({ ...defaultSettings, isLoading: false });
+        }, 100);
+      },
+    }),
+    {
+      name: "pomodoro-settings",
+      partialize: (state) => {
+        // Only persist actual settings, not actions or loading state
+        const {
+          updateSetting,
+          updateMultipleSettings,
+          resetToDefaults,
+          isLoading,
+          ...settings
+        } = state;
+        return settings;
+      },
+    }
+  )
+);

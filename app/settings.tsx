@@ -1,97 +1,184 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import Slider from "@react-native-community/slider";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import {
-  Modal,
-  SafeAreaView,
+  Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import DatabaseExample from "../components/DatabaseExample";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useSettingsStore } from "../stores/settingsStore";
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [showDatabaseExample, setShowDatabaseExample] = useState(false);
 
   // Force dark theme
   const isDark = true;
 
-  // Navigate to timer screen for timer settings
-  const goToTimerSettings = () => {
-    router.navigate("/");
-  };
+  // Get settings from Zustand store
+  const {
+    long_break_interval,
+    auto_start_breaks,
+    auto_start_pomodoros,
+    updateSetting,
+    isLoading,
+  } = useSettingsStore();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.container}>
       <ScrollView style={styles.scrollContainer}>
-        <Text style={styles.title}>Settings</Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Settings</Text>
+          {isLoading && (
+            <View style={styles.loadingIndicator}>
+              <Text style={styles.loadingText}>Saving...</Text>
+            </View>
+          )}
+        </View>
 
-        {/* Timer Settings Section - Redirects to Timer Screen */}
-        <TouchableOpacity onPress={goToTimerSettings}>
-          <View style={styles.settingSection}>
+        {/* Pomodoro Cycle Settings */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <MaterialIcons name="repeat" size={24} color="#ff9800" />
+            <Text style={styles.sectionTitle}>Pomodoro Cycle</Text>
+          </View>
+
+          {/* Long Break Interval */}
+          <View style={styles.settingItem}>
             <View style={styles.settingHeader}>
-              <MaterialIcons name="timer" size={24} color="#625df5" />
-              <Text style={styles.settingTitle}>Timer Settings</Text>
+              <MaterialIcons name="schedule" size={20} color="#ff9800" />
+              <Text style={styles.settingTitle}>
+                Long break after {long_break_interval} work sessions
+              </Text>
             </View>
             <Text style={styles.settingDescription}>
-              Adjust work and break durations directly from the timer screen
+              Configure how many work sessions before taking a long break
             </Text>
-            <View style={styles.navigateContainer}>
-              <MaterialIcons name="arrow-forward" size={20} color="#aaa" />
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        {/* Database Testing Section */}
-        <TouchableOpacity onPress={() => setShowDatabaseExample(true)}>
-          <View style={styles.settingSection}>
-            <View style={styles.settingHeader}>
-              <MaterialIcons name="storage" size={24} color="#4caf50" />
-              <Text style={styles.settingTitle}>Database Testing</Text>
-            </View>
-            <Text style={styles.settingDescription}>
-              Test local database operations with Drizzle and SQLite
+            <Slider
+              value={long_break_interval}
+              onValueChange={() => {}} // No live preview, only save on complete
+              onSlidingComplete={(value) =>
+                updateSetting("long_break_interval", Math.round(value))
+              }
+              minimumValue={2}
+              maximumValue={8}
+              step={1}
+              minimumTrackTintColor="#625df5"
+              maximumTrackTintColor="#333"
+              thumbTintColor="#625df5"
+              style={styles.slider}
+            />
+            <Text style={styles.sliderHelper}>
+              Range: 2-8 sessions (Current: {long_break_interval})
             </Text>
-            <View style={styles.navigateContainer}>
-              <MaterialIcons name="arrow-forward" size={20} color="#aaa" />
-            </View>
           </View>
-        </TouchableOpacity>
+        </View>
 
-        {/* About Section - Placeholder for future settings */}
-        <View style={styles.settingSection}>
-          <View style={styles.settingHeader}>
-            <MaterialIcons name="info" size={24} color="#ff9800" />
-            <Text style={styles.settingTitle}>About</Text>
+        {/* Automatic Behavior Settings */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <MaterialIcons name="play-arrow" size={24} color="#4caf50" />
+            <Text style={styles.sectionTitle}>Automatic Behavior</Text>
           </View>
+
+          {/* Auto-start Breaks */}
+          <View style={styles.switchSetting}>
+            <View style={styles.switchSettingInfo}>
+              <MaterialIcons
+                name="pause-circle-filled"
+                size={20}
+                color="#4caf50"
+              />
+              <View style={styles.switchSettingText}>
+                <Text style={styles.settingTitle}>Auto-start Breaks</Text>
+                <Text style={styles.settingDescription}>
+                  Automatically start break timers when work sessions complete
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={auto_start_breaks}
+              onValueChange={(value) =>
+                updateSetting("auto_start_breaks", value)
+              }
+              trackColor={{ false: "#333", true: "#625df5" }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          {/* Auto-start Pomodoros */}
+          <View style={styles.switchSetting}>
+            <View style={styles.switchSettingInfo}>
+              <MaterialIcons
+                name="play-circle-filled"
+                size={20}
+                color="#ff5252"
+              />
+              <View style={styles.switchSettingText}>
+                <Text style={styles.settingTitle}>
+                  Auto-start Work Sessions
+                </Text>
+                <Text style={styles.settingDescription}>
+                  Automatically start work timers when breaks complete
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={auto_start_pomodoros}
+              onValueChange={(value) =>
+                updateSetting("auto_start_pomodoros", value)
+              }
+              trackColor={{ false: "#333", true: "#625df5" }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
+
+        {/* Reset Settings Section */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <MaterialIcons name="restore" size={24} color="#f44336" />
+            <Text style={styles.sectionTitle}>Reset Settings</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.resetButton}
+            onPress={() => {
+              Alert.alert(
+                "Reset Settings",
+                "Are you sure you want to reset all settings to their default values? This action cannot be undone.",
+                [
+                  {
+                    text: "Cancel",
+                    style: "cancel",
+                  },
+                  {
+                    text: "Reset",
+                    style: "destructive",
+                    onPress: () => {
+                      const { resetToDefaults } = useSettingsStore.getState();
+                      resetToDefaults();
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <MaterialIcons name="refresh" size={20} color="#f44336" />
+            <Text style={styles.resetButtonText}>
+              Reset All Settings to Defaults
+            </Text>
+          </TouchableOpacity>
           <Text style={styles.settingDescription}>
-            Time Management App v1.0 - Now with local-first database storage
+            This will reset automatic behavior settings to their default values
           </Text>
         </View>
       </ScrollView>
-
-      {/* Database Example Modal */}
-      <Modal
-        visible={showDatabaseExample}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowDatabaseExample(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setShowDatabaseExample(false)}
-              style={styles.closeButton}
-            >
-              <MaterialIcons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <DatabaseExample />
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -102,21 +189,56 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
   },
   scrollContainer: {
-    flex: 1,
-    padding: 16,
+    padding: 20,
+  },
+  titleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 30,
   },
   title: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
-    marginBottom: 24,
-    marginTop: 12,
+  },
+  loadingIndicator: {
+    backgroundColor: "#625df5",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  loadingText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  sectionContainer: {
+    backgroundColor: "#1e1e1e",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+    marginLeft: 12,
+  },
+  settingItem: {
+    marginBottom: 10,
   },
   settingSection: {
-    backgroundColor: "#1e1e1e",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   settingHeader: {
     flexDirection: "row",
@@ -124,31 +246,60 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   settingTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "600",
     color: "#fff",
     marginLeft: 12,
   },
   settingDescription: {
     fontSize: 14,
     color: "#aaa",
-    marginLeft: 36,
+    marginLeft: 32,
+    lineHeight: 20,
+  },
+  slider: {
+    marginHorizontal: 32,
+    marginVertical: 20,
+    height: 40,
+  },
+  sliderHelper: {
+    fontSize: 12,
+    color: "#888",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  switchSetting: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  switchSettingInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  switchSettingText: {
+    marginLeft: 12,
+    flex: 1,
   },
   navigateContainer: {
-    alignItems: "flex-end",
-    marginTop: 8,
+    marginLeft: 10,
   },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
-  modalHeader: {
+  resetButton: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    alignItems: "center",
+    backgroundColor: "#2d1b1b",
+    borderRadius: 12,
     padding: 16,
-    paddingTop: 50,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#4a2a2a",
   },
-  closeButton: {
-    padding: 8,
+  resetButtonText: {
+    color: "#f44336",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
   },
 });

@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useSessionsData } from "../hooks/useSessionsData";
 import { useTasksData } from "../hooks/useTasksData";
 import { Task } from "../stores/taskStore";
@@ -83,6 +84,7 @@ export default function StatsScreen() {
 
   return (
     <SafeAreaView
+      edges={["top", "left", "right"]}
       style={[
         styles.container,
         isDark ? styles.darkContainer : styles.lightContainer,
@@ -265,6 +267,8 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   statsContainer: {
     flexDirection: "row",

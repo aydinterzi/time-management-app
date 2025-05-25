@@ -3,7 +3,6 @@ import Slider from "@react-native-community/slider";
 import { useFocusEffect } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -14,9 +13,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Timer from "../components/Timer";
 import { useSessionsData } from "../hooks/useSessionsData";
-import { useSettingsData } from "../hooks/useSettingsData";
 import { useTasksData } from "../hooks/useTasksData";
-import { AppSettings } from "../stores/settingsStore";
+import { useSettingsStore } from "../stores/settingsStore";
 import { Task, useTaskStore } from "../stores/taskStore";
 import { useTimerStore } from "../stores/timerStore";
 
@@ -30,12 +28,14 @@ export default function TimerScreen() {
     duration,
     activeTaskId,
     completedSessions,
+    state,
     setType,
     setDuration,
     setActiveTaskId,
     setSessionId,
     incrementCompletedSessions,
     resetCompletedSessions,
+    start,
     reset: resetTimer,
   } = useTimerStore();
 
@@ -46,14 +46,15 @@ export default function TimerScreen() {
   // Session operations
   const { startSession, completeSession } = useSessionsData();
 
-  // Settings operations
-  const { getSettings, updateSettings } = useSettingsData();
-
   // Timer settings
   const [workMinutes, setWorkMinutes] = useState(25);
   const [shortBreakMinutes, setShortBreakMinutes] = useState(5);
   const [longBreakMinutes, setLongBreakMinutes] = useState(15);
   const [showTimerSettings, setShowTimerSettings] = useState(false);
+
+  // Get automatic behavior settings from Zustand store
+  const { long_break_interval, auto_start_breaks, auto_start_pomodoros } =
+    useSettingsStore();
 
   // Component state
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -87,28 +88,10 @@ export default function TimerScreen() {
   // Load data from database
   const loadInitialData = async () => {
     try {
-      // Load settings
-      const settings = await getSettings();
-      if (settings) {
-        const appSettings = settings as AppSettings;
-        setWorkMinutes(appSettings.work_duration / 60);
-        setShortBreakMinutes(appSettings.short_break_duration / 60);
-        setLongBreakMinutes(appSettings.long_break_duration / 60);
-
-        // Set timer duration based on the current timer type
-        if (type === "work") {
-          setDuration(appSettings.work_duration);
-        } else if (type === "short_break") {
-          setDuration(appSettings.short_break_duration);
-        } else if (type === "long_break") {
-          setDuration(appSettings.long_break_duration);
-        }
-      }
-
-      // Load tasks
+      // Load tasks (settings are now handled by Zustand store)
       await loadTasks();
     } catch (error) {
-      console.error("Error loading initial data:", error);
+      // Error loading initial data - fail silently in production
     }
   };
 
@@ -117,15 +100,13 @@ export default function TimerScreen() {
     try {
       await fetchTasks(true);
     } catch (error) {
-      console.error("Error loading tasks:", error);
+      // Error loading tasks - fail silently in production
     }
   };
 
   // Handle timer completion
   const handleTimerComplete = async () => {
     try {
-      console.log(`Timer completed: ${type} session`);
-
       // Handle work session completion
       if (type === "work") {
         // Show completion message
@@ -140,31 +121,49 @@ export default function TimerScreen() {
         incrementCompletedSessions();
 
         // Create and complete a work session for statistics
-        const sessionId = await startSession(activeTaskId, "work", duration);
+        const sessionId = startSession(
+          "work",
+          duration,
+          activeTaskId || undefined
+        );
         if (sessionId) {
-          await completeSession(sessionId);
+          completeSession(sessionId);
         }
 
         // Determine next break type based on completed sessions
-        // Every 4th session gets a long break, others get short break
-        const nextIsLongBreak = (completedSessions + 1) % 4 === 0;
+        // Use configurable long break interval instead of hardcoded 4
+        const nextIsLongBreak =
+          (completedSessions + 1) % long_break_interval === 0;
         const nextType = nextIsLongBreak ? "long_break" : "short_break";
         const nextDuration = nextIsLongBreak
           ? longBreakMinutes * 60
           : shortBreakMinutes * 60;
 
-        console.log(
-          `Switching to ${nextType} (${
-            nextIsLongBreak ? longBreakMinutes : shortBreakMinutes
-          } minutes)`
-        );
-
         // Switch to break
-        setTimeout(() => {
+        const switchToBreak = () => {
           setType(nextType);
           setDuration(nextDuration);
           resetTimer();
-        }, 2000);
+
+          // Auto-start break if enabled
+          if (auto_start_breaks) {
+            setTimeout(() => {
+              start();
+            }, 1000); // Small delay to allow UI to update
+          }
+        };
+
+        if (auto_start_breaks) {
+          // Switch immediately if auto-start is enabled
+          setTimeout(switchToBreak, 2000);
+        } else {
+          // Switch but don't start automatically
+          setTimeout(() => {
+            setType(nextType);
+            setDuration(nextDuration);
+            resetTimer();
+          }, 2000);
+        }
 
         // Update completion message for break
         setTimeout(() => {
@@ -176,23 +175,40 @@ export default function TimerScreen() {
         }, 2000);
       } else {
         // Handle break session completion
-        console.log(`Break completed, switching to work session`);
-
         // Show completion message
         setCompletionMessage("✨ Break time is over! Ready to focus?");
 
         // Create and complete a break session for statistics
-        const sessionId = await startSession(null, type, duration);
+        const sessionId = startSession(type, duration);
         if (sessionId) {
-          await completeSession(sessionId);
+          completeSession(sessionId);
         }
 
         // Switch back to work
-        setTimeout(() => {
+        const switchToWork = () => {
           setType("work");
           setDuration(workMinutes * 60);
           resetTimer();
-        }, 2000);
+
+          // Auto-start work session if enabled
+          if (auto_start_pomodoros) {
+            setTimeout(() => {
+              start();
+            }, 1000); // Small delay to allow UI to update
+          }
+        };
+
+        if (auto_start_pomodoros) {
+          // Switch and auto-start if enabled
+          setTimeout(switchToWork, 2000);
+        } else {
+          // Switch but don't start automatically
+          setTimeout(() => {
+            setType("work");
+            setDuration(workMinutes * 60);
+            resetTimer();
+          }, 2000);
+        }
 
         // Update completion message for work
         setTimeout(() => {
@@ -205,7 +221,7 @@ export default function TimerScreen() {
         setCompletionMessage(null);
       }, 5000);
     } catch (error) {
-      console.error("Error handling timer completion:", error);
+      // Timer completion error - fail silently in production
     }
   };
 
@@ -227,44 +243,29 @@ export default function TimerScreen() {
     setShowTaskSelect(false);
   };
 
-  // Update timer setting and save to storage
-  const updateTimerSetting = async (settingType: string, minutes: number) => {
-    try {
-      const seconds = minutes * 60;
-      const updates: Partial<AppSettings> = {};
+  // Handle manual timer type switching
+  const handleTimerTypeSwitch = (
+    newType: "work" | "short_break" | "long_break"
+  ) => {
+    // Reset timer to idle state first
+    resetTimer();
 
-      if (settingType === "work") {
-        setWorkMinutes(minutes);
-        updates.work_duration = seconds;
-        // If we're currently in a work session, update the timer immediately
-        if (type === "work") {
-          setDuration(seconds);
-        }
-      } else if (settingType === "short_break") {
-        setShortBreakMinutes(minutes);
-        updates.short_break_duration = seconds;
-        // If we're currently in a short break, update the timer immediately
-        if (type === "short_break") {
-          setDuration(seconds);
-        }
-      } else if (settingType === "long_break") {
-        setLongBreakMinutes(minutes);
-        updates.long_break_duration = seconds;
-        // If we're currently in a long break, update the timer immediately
-        if (type === "long_break") {
-          setDuration(seconds);
-        }
-      }
+    // Set new type
+    setType(newType);
 
-      // Save settings to storage
-      await updateSettings(updates);
-    } catch (error) {
-      console.error("Error updating timer settings:", error);
+    // Set appropriate duration based on type
+    if (newType === "work") {
+      setDuration(workMinutes * 60);
+    } else if (newType === "short_break") {
+      setDuration(shortBreakMinutes * 60);
+    } else if (newType === "long_break") {
+      setDuration(longBreakMinutes * 60);
     }
   };
 
   return (
     <SafeAreaView
+      edges={["top", "left", "right"]}
       style={[
         styles.container,
         isDark ? styles.darkContainer : styles.lightContainer,
@@ -274,6 +275,98 @@ export default function TimerScreen() {
 
       <View style={styles.timerContainer}>
         <Timer onComplete={handleTimerComplete} />
+
+        {/* Manual Timer Type Switching */}
+        <View style={styles.timerSwitchContainer}>
+          <Text
+            style={[
+              styles.timerSwitchLabel,
+              isDark ? styles.darkText : styles.lightText,
+            ]}
+          >
+            Quick Switch:
+          </Text>
+          <View style={styles.timerSwitchButtons}>
+            <TouchableOpacity
+              style={[
+                styles.timerSwitchButton,
+                type === "work" && styles.timerSwitchButtonActive,
+                isDark ? styles.darkButton : styles.lightButton,
+              ]}
+              onPress={() => handleTimerTypeSwitch("work")}
+              disabled={state === "running"}
+            >
+              <MaterialIcons
+                name="work"
+                size={16}
+                color={type === "work" ? "#fff" : isDark ? "#fff" : "#333"}
+              />
+              <Text
+                style={[
+                  styles.timerSwitchButtonText,
+                  type === "work" && styles.timerSwitchButtonTextActive,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Work
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.timerSwitchButton,
+                type === "short_break" && styles.timerSwitchButtonActive,
+                isDark ? styles.darkButton : styles.lightButton,
+              ]}
+              onPress={() => handleTimerTypeSwitch("short_break")}
+              disabled={state === "running"}
+            >
+              <MaterialIcons
+                name="coffee"
+                size={16}
+                color={
+                  type === "short_break" ? "#fff" : isDark ? "#fff" : "#333"
+                }
+              />
+              <Text
+                style={[
+                  styles.timerSwitchButtonText,
+                  type === "short_break" && styles.timerSwitchButtonTextActive,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Short
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.timerSwitchButton,
+                type === "long_break" && styles.timerSwitchButtonActive,
+                isDark ? styles.darkButton : styles.lightButton,
+              ]}
+              onPress={() => handleTimerTypeSwitch("long_break")}
+              disabled={state === "running"}
+            >
+              <MaterialIcons
+                name="free-breakfast"
+                size={16}
+                color={
+                  type === "long_break" ? "#fff" : isDark ? "#fff" : "#333"
+                }
+              />
+              <Text
+                style={[
+                  styles.timerSwitchButtonText,
+                  type === "long_break" && styles.timerSwitchButtonTextActive,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Long
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Completion Message */}
         {completionMessage && (
@@ -310,14 +403,18 @@ export default function TimerScreen() {
               : type === "short_break"
               ? "Short Break"
               : "Long Break"}
+            {((type === "work" && auto_start_breaks) ||
+              (type !== "work" && auto_start_pomodoros)) &&
+              " • Auto"}
           </Text>
           <View style={styles.sessionDots}>
-            {[1, 2, 3, 4].map((num) => (
+            {Array.from({ length: long_break_interval }, (_, index) => (
               <View
-                key={num}
+                key={index + 1}
                 style={[
                   styles.sessionDot,
-                  completedSessions % 4 >= num - 1 && styles.sessionDotActive,
+                  completedSessions % long_break_interval >= index &&
+                    styles.sessionDotActive,
                 ]}
               />
             ))}
@@ -439,9 +536,7 @@ export default function TimerScreen() {
             <Slider
               value={workMinutes}
               onValueChange={(value) => setWorkMinutes(Math.round(value))}
-              onSlidingComplete={(value) =>
-                updateTimerSetting("work", Math.round(value))
-              }
+              onSlidingComplete={(value) => setDuration(Math.round(value) * 60)}
               minimumValue={1}
               maximumValue={60}
               step={1}
@@ -468,9 +563,7 @@ export default function TimerScreen() {
             <Slider
               value={shortBreakMinutes}
               onValueChange={(value) => setShortBreakMinutes(Math.round(value))}
-              onSlidingComplete={(value) =>
-                updateTimerSetting("short_break", Math.round(value))
-              }
+              onSlidingComplete={(value) => setDuration(Math.round(value) * 60)}
               minimumValue={1}
               maximumValue={15}
               step={1}
@@ -497,9 +590,7 @@ export default function TimerScreen() {
             <Slider
               value={longBreakMinutes}
               onValueChange={(value) => setLongBreakMinutes(Math.round(value))}
-              onSlidingComplete={(value) =>
-                updateTimerSetting("long_break", Math.round(value))
-              }
+              onSlidingComplete={(value) => setDuration(Math.round(value) * 60)}
               minimumValue={5}
               maximumValue={30}
               step={1}
@@ -598,7 +689,6 @@ export default function TimerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   darkContainer: {
     backgroundColor: "#121212",
@@ -791,5 +881,38 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     paddingHorizontal: 20,
+  },
+  timerSwitchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  timerSwitchLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    marginRight: 8,
+  },
+  timerSwitchButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  timerSwitchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginHorizontal: 4,
+  },
+  timerSwitchButtonActive: {
+    backgroundColor: "#625df5",
+  },
+  timerSwitchButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginLeft: 4,
+  },
+  timerSwitchButtonTextActive: {
+    color: "#fff",
   },
 });
