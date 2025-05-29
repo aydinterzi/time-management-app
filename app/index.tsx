@@ -62,6 +62,8 @@ export default function TimerScreen() {
   const [completionMessage, setCompletionMessage] = useState<string | null>(
     null
   );
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
 
   // Load settings and tasks on component mount
   useEffect(() => {
@@ -104,9 +106,36 @@ export default function TimerScreen() {
     }
   };
 
+  // Start timer session when timer starts
+  const handleTimerStart = async () => {
+    try {
+      // Start a new session when timer begins
+      const sessionId = await startSession(
+        type,
+        duration,
+        activeTaskId || undefined
+      );
+      setCurrentSessionId(sessionId);
+      setSessionStartTime(Date.now());
+      start();
+    } catch (error) {
+      console.error("Error starting session:", error);
+      // Still start the timer even if session tracking fails
+      start();
+    }
+  };
+
   // Handle timer completion
   const handleTimerComplete = async () => {
     try {
+      // Complete the current session if it exists
+      if (currentSessionId && sessionStartTime) {
+        const actualDuration = (Date.now() - sessionStartTime) / 1000; // Convert to seconds
+        await completeSession(currentSessionId, actualDuration);
+        setCurrentSessionId(null);
+        setSessionStartTime(null);
+      }
+
       // Handle work session completion
       if (type === "work") {
         // Show completion message
@@ -119,16 +148,6 @@ export default function TimerScreen() {
 
         // Increment completed sessions counter
         incrementCompletedSessions();
-
-        // Create and complete a work session for statistics
-        const sessionId = startSession(
-          "work",
-          duration,
-          activeTaskId || undefined
-        );
-        if (sessionId) {
-          completeSession(sessionId);
-        }
 
         // Determine next break type based on completed sessions
         // Use configurable long break interval instead of hardcoded 4
@@ -148,7 +167,7 @@ export default function TimerScreen() {
           // Auto-start break if enabled
           if (auto_start_breaks) {
             setTimeout(() => {
-              start();
+              handleTimerStart();
             }, 1000); // Small delay to allow UI to update
           }
         };
@@ -178,12 +197,6 @@ export default function TimerScreen() {
         // Show completion message
         setCompletionMessage("✨ Break time is over! Ready to focus?");
 
-        // Create and complete a break session for statistics
-        const sessionId = startSession(type, duration);
-        if (sessionId) {
-          completeSession(sessionId);
-        }
-
         // Switch back to work
         const switchToWork = () => {
           setType("work");
@@ -193,7 +206,7 @@ export default function TimerScreen() {
           // Auto-start work session if enabled
           if (auto_start_pomodoros) {
             setTimeout(() => {
-              start();
+              handleTimerStart();
             }, 1000); // Small delay to allow UI to update
           }
         };
@@ -221,7 +234,7 @@ export default function TimerScreen() {
         setCompletionMessage(null);
       }, 5000);
     } catch (error) {
-      // Timer completion error - fail silently in production
+      console.error("Error handling timer completion:", error);
     }
   };
 
@@ -263,6 +276,16 @@ export default function TimerScreen() {
     }
   };
 
+  // Handle timer reset
+  const handleTimerReset = () => {
+    // Clean up current session tracking if in progress
+    if (currentSessionId) {
+      setCurrentSessionId(null);
+      setSessionStartTime(null);
+    }
+    resetTimer();
+  };
+
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -274,7 +297,11 @@ export default function TimerScreen() {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <View style={styles.timerContainer}>
-        <Timer onComplete={handleTimerComplete} />
+        <Timer
+          onComplete={handleTimerComplete}
+          onStart={handleTimerStart}
+          onReset={handleTimerReset}
+        />
 
         {/* Manual Timer Type Switching */}
         <View style={styles.timerSwitchContainer}>

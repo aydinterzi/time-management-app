@@ -1,17 +1,18 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useSessionsData } from "../hooks/useSessionsData";
+import { SessionStat, useSessionsData } from "../hooks/useSessionsData";
 import { useTasksData } from "../hooks/useTasksData";
 import { Task } from "../stores/taskStore";
-
-// Define SessionStat type for the return value of getSessionStats
-interface SessionStat {
-  type: string;
-  count: number;
-  total_duration: number;
-}
 
 export default function StatsScreen() {
   // Force dark theme
@@ -24,6 +25,9 @@ export default function StatsScreen() {
   const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
   const [sessionStats, setSessionStats] = useState<SessionStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [debugPressCount, setDebugPressCount] = useState(0);
   const [stats, setStats] = useState({
     totalWorkMinutes: 0,
     totalCompletedTasks: 0,
@@ -31,12 +35,11 @@ export default function StatsScreen() {
     averageSessionsPerTask: 0,
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  // Simple loadData function without complex dependencies
+  const loadData = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
+
     try {
       // Load completed tasks
       const tasksResult = await fetchTasks(true);
@@ -65,9 +68,15 @@ export default function StatsScreen() {
         0
       );
 
-      const averageSessionsPerTask = completedTasksResult.length
-        ? totalSessions / completedTasksResult.length
-        : 0;
+      const workSessions = sessionStatsResult.find(
+        (stat) => stat.type === "work"
+      );
+      const totalWorkSessions = workSessions ? workSessions.count : 0;
+
+      const averageSessionsPerTask =
+        completedTasksResult.length > 0
+          ? totalWorkSessions / completedTasksResult.length
+          : 0;
 
       setStats({
         totalWorkMinutes,
@@ -77,10 +86,84 @@ export default function StatsScreen() {
       });
     } catch (error) {
       console.error("Error loading statistics data:", error);
+      setError("Failed to load statistics data. Please try again.");
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, [fetchTasks, sessionsData]); // Removed refreshing dependency
+
+  // Load data on component mount
+  useEffect(() => {
+    loadData();
+  }, []); // Only run on mount
+
+  // Temporarily disabled focus effect to prevent blinking
+  // Users can still manually refresh using pull-to-refresh
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     loadData();
+  //   }, [loadData])
+  // );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+  };
+
+  const formatMinutes = (minutes: number): string => {
+    if (minutes < 60) {
+      return `${Math.round(minutes)}m`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = Math.round(minutes % 60);
+    return remainingMinutes > 0
+      ? `${hours}h ${remainingMinutes}m`
+      : `${hours}h`;
+  };
+
+  // Debug function to create sample data
+  const handleDebugPress = async () => {
+    const newCount = debugPressCount + 1;
+    setDebugPressCount(newCount);
+
+    if (newCount >= 5) {
+      try {
+        setError(null);
+        await sessionsData.createSampleSessions();
+        setDebugPressCount(0);
+        // Reload data to show the new sample sessions
+        await loadData();
+      } catch (error) {
+        setError("Failed to create sample data");
+      }
     }
   };
+
+  // Show loading spinner on initial load
+  if (isLoading && !refreshing) {
+    return (
+      <SafeAreaView
+        edges={["top", "left", "right"]}
+        style={[
+          styles.container,
+          isDark ? styles.darkContainer : styles.lightContainer,
+        ]}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#625df5" />
+          <Text
+            style={[
+              styles.loadingText,
+              isDark ? styles.darkSubText : styles.lightSubText,
+            ]}
+          >
+            Loading statistics...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -90,7 +173,31 @@ export default function StatsScreen() {
         isDark ? styles.darkContainer : styles.lightContainer,
       ]}
     >
-      <ScrollView style={styles.scrollContainer}>
+      <ScrollView
+        style={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#625df5"]}
+            tintColor="#625df5"
+          />
+        }
+      >
+        {error && (
+          <View style={styles.errorContainer}>
+            <MaterialIcons name="error" size={24} color="#ff5252" />
+            <Text
+              style={[
+                styles.errorText,
+                isDark ? styles.darkText : styles.lightText,
+              ]}
+            >
+              {error}
+            </Text>
+          </View>
+        )}
+
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View
@@ -106,7 +213,7 @@ export default function StatsScreen() {
                 isDark ? styles.darkText : styles.lightText,
               ]}
             >
-              {stats.totalWorkMinutes.toFixed(0)}
+              {formatMinutes(stats.totalWorkMinutes)}
             </Text>
             <Text
               style={[
@@ -114,7 +221,7 @@ export default function StatsScreen() {
                 isDark ? styles.darkSubText : styles.lightSubText,
               ]}
             >
-              Total Minutes
+              Total Work Time
             </Text>
           </View>
 
@@ -189,10 +296,85 @@ export default function StatsScreen() {
                 isDark ? styles.darkSubText : styles.lightSubText,
               ]}
             >
-              Avg Sessions/Task
+              Work Sessions/Task
             </Text>
           </View>
         </View>
+
+        {/* Session Breakdown */}
+        {sessionStats.length > 0 && (
+          <View style={styles.section}>
+            <TouchableOpacity onPress={handleDebugPress}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  isDark ? styles.darkText : styles.lightText,
+                ]}
+              >
+                Session Breakdown (Last 7 Days){" "}
+                {debugPressCount > 0 && `(${debugPressCount}/5)`}
+              </Text>
+            </TouchableOpacity>
+            <View
+              style={[
+                styles.breakdownContainer,
+                isDark ? styles.darkTaskList : styles.lightTaskList,
+              ]}
+            >
+              {sessionStats.map((stat) => (
+                <View key={stat.type} style={styles.breakdownItem}>
+                  <View style={styles.breakdownLeft}>
+                    <MaterialIcons
+                      name={
+                        stat.type === "work"
+                          ? "work"
+                          : stat.type === "short_break"
+                          ? "coffee"
+                          : "local-cafe"
+                      }
+                      size={24}
+                      color={
+                        stat.type === "work"
+                          ? "#625df5"
+                          : stat.type === "short_break"
+                          ? "#4caf50"
+                          : "#ff9800"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.breakdownType,
+                        isDark ? styles.darkText : styles.lightText,
+                      ]}
+                    >
+                      {stat.type
+                        .replace("_", " ")
+                        .replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </Text>
+                  </View>
+                  <View style={styles.breakdownRight}>
+                    <Text
+                      style={[
+                        styles.breakdownCount,
+                        isDark ? styles.darkText : styles.lightText,
+                      ]}
+                    >
+                      {stat.count} sessions
+                    </Text>
+                    <Text
+                      style={[
+                        styles.breakdownDuration,
+                        isDark ? styles.darkSubText : styles.lightSubText,
+                      ]}
+                    >
+                      {formatMinutes(stat.total_duration / 60)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Completed Tasks Section */}
         <View style={styles.section}>
@@ -211,7 +393,7 @@ export default function StatsScreen() {
             ]}
           >
             {completedTasks.length > 0 ? (
-              completedTasks.map((task) => (
+              completedTasks.slice(0, 10).map((task) => (
                 <View key={task.id} style={styles.taskItem}>
                   <MaterialIcons
                     name="check-circle"
@@ -233,7 +415,7 @@ export default function StatsScreen() {
                         isDark ? styles.darkSubText : styles.lightSubText,
                       ]}
                     >
-                      {task.completed_pomodoros} pomodoros
+                      {task.completed_pomodoros} pomodoros completed
                     </Text>
                   </View>
                 </View>
@@ -245,7 +427,8 @@ export default function StatsScreen() {
                   isDark ? styles.darkSubText : styles.lightSubText,
                 ]}
               >
-                No completed tasks yet
+                No completed tasks yet. Start a timer session to track your
+                progress!
               </Text>
             )}
           </View>
@@ -264,6 +447,29 @@ const styles = StyleSheet.create({
   },
   lightContainer: {
     backgroundColor: "#f5f5f5",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffebee",
+    margin: 16,
+    padding: 12,
+    borderRadius: 8,
+  },
+  errorText: {
+    marginLeft: 8,
+    flex: 1,
+    fontSize: 14,
   },
   scrollContainer: {
     flex: 1,
@@ -290,12 +496,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0e0e0",
   },
   statValue: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: "bold",
     marginVertical: 8,
+    textAlign: "center",
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
+    textAlign: "center",
   },
   darkText: {
     color: "#fff",
@@ -316,6 +524,39 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 16,
+  },
+  breakdownContainer: {
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  breakdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  breakdownLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  breakdownType: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginLeft: 12,
+  },
+  breakdownRight: {
+    alignItems: "flex-end",
+  },
+  breakdownCount: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  breakdownDuration: {
+    fontSize: 12,
+    marginTop: 2,
   },
   taskListContainer: {
     borderRadius: 8,
@@ -349,5 +590,6 @@ const styles = StyleSheet.create({
   emptyText: {
     textAlign: "center",
     padding: 16,
+    fontStyle: "italic",
   },
 });

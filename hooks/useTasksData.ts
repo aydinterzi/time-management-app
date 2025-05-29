@@ -88,6 +88,7 @@ export function useTasksData() {
           title: taskData.title,
           description: taskData.description || "",
           priority: taskData.priority || 1,
+          estimated_pomodoros: taskData.estimated_pomodoros || 1,
           completed: false,
         });
 

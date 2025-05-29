@@ -15,9 +15,11 @@ const formatTime = (seconds: number): string => {
 
 interface TimerProps {
   onComplete?: () => void;
+  onStart?: () => void;
+  onReset?: () => void;
 }
 
-export default function Timer({ onComplete }: TimerProps) {
+export default function Timer({ onComplete, onStart, onReset }: TimerProps) {
   // Force dark theme
   const isDark = true;
 
@@ -138,8 +140,12 @@ export default function Timer({ onComplete }: TimerProps) {
   const handlePlayPause = () => {
     if (state === "idle") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      start();
-      setStartTimestamp(Date.now());
+      if (onStart) {
+        onStart(); // This will handle both session tracking and timer start
+      } else {
+        start();
+        setStartTimestamp(Date.now());
+      }
     } else if (state === "running") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       pause();
@@ -157,7 +163,11 @@ export default function Timer({ onComplete }: TimerProps) {
   const handleReset = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setStartTimestamp(null);
-    reset();
+    if (onReset) {
+      onReset(); // This will handle session cleanup and timer reset
+    } else {
+      reset();
+    }
   };
 
   // Determine which button to show

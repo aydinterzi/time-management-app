@@ -1,5 +1,6 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 export interface SettingsState {
   // Pomodoro cycle settings
@@ -60,6 +61,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "pomodoro-settings",
+      storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => {
         // Only persist actual settings, not actions or loading state
         const {
