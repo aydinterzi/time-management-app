@@ -18,7 +18,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.henkinen.questodoro",
-      "versionCode": 1
+      "versionCode": 2
     },
     "web": {
       "bundler": "metro",
