@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "time-management-app",
+    "name": "Questodoro",
     "slug": "time-management-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "timemanagementapp",
@@ -18,7 +18,8 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.henkinen.questodoro",
-      "versionCode": 2
+      "versionCode": 3,
+      "label": "Questodoro"
     },
     "web": {
       "bundler": "metro",
